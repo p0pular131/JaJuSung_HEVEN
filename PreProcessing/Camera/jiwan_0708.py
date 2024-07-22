@@ -11,6 +11,10 @@ from sklearn.cluster import DBSCAN
 
 
 def process_frame(frame):
+
+
+    # BEV 변환 적용
+    #bev_image = bev_transform(frame, src_points, dst_points, size)
     hsv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     lower_blue = np.array([90, 190, 100])    # H값 차이 적음 S 명확함
@@ -92,7 +96,7 @@ def read_bag_file(bag_file_path, topic_name):
     upper_blue = np.array([150, 255, 255])
     lower_yellow = np.array([5, 130, 160])  # S가 V보다 작음
     upper_yellow = np.array([30, 255, 255])
-
+    
     bridge = CvBridge()
     pub = rospy.Publisher('cone_coordinates', Float32MultiArray, queue_size=10)
     rospy.init_node('cone_detector', anonymous=True)
@@ -100,7 +104,26 @@ def read_bag_file(bag_file_path, topic_name):
     with rosbag.Bag(bag_file_path, 'r') as bag:
         for topic, msg, t in bag.read_messages(topics=[topic_name]):
             cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")
-            blue_coords, yellow_coords = process_frame(cv_image)
+            #blue_coords, yellow_coords = process_frame(cv_image)
+            
+            height, width = cv_image.shape[:2]
+            print(f"Image Size: Width={width}, Height={height}")
+            
+            size = (480, 800)
+            src_points = np.float32([
+            [width*0.1, height * 0.5],
+            [width*0.9, height * 0.5],
+            [width, height*0.9],
+            [0, height*0.9]])  
+            dst_points = np.float32([
+            [0, 0],
+            [width*0.75, 0],
+            [width*0.75, height*1.4],
+            [0, height*1.4]])
+            # BEV 변환 적용 및 시각화
+            bev_image = bev_transform(cv_image, src_points, dst_points, size)
+            #bev_image_resized = cv2.resize(bev_image, (480,800))
+            blue_coords, yellow_coords = process_frame(bev_image)
             
             coords = Float32MultiArray()
             coords.data = [item for sublist in (blue_coords + yellow_coords) for item in sublist]
@@ -108,11 +131,11 @@ def read_bag_file(bag_file_path, topic_name):
             pub.publish(coords)
             
             # Combine masks
-            mask_blue = cv2.inRange(cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV), lower_blue, upper_blue)
-            mask_yellow = cv2.inRange(cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV), lower_yellow, upper_yellow)
+            mask_blue = cv2.inRange(cv2.cvtColor(bev_image, cv2.COLOR_BGR2HSV), lower_blue, upper_blue)
+            mask_yellow = cv2.inRange(cv2.cvtColor(bev_image, cv2.COLOR_BGR2HSV), lower_yellow, upper_yellow)
             mask = cv2.bitwise_or(mask_blue, mask_yellow)
             # Bitwise-AND mask and original image
-            filtered_image = cv2.bitwise_and(cv_image, cv_image, mask=mask)
+            filtered_image = cv2.bitwise_and(bev_image, bev_image, mask=mask)
             
             # Display the resulting frame
             cv_image_copy = cv_image.copy()
@@ -122,16 +145,23 @@ def read_bag_file(bag_file_path, topic_name):
                 cv2.circle(cv_image_copy, coord, 5, (255, 255, 0), -1)   # 점 반지름 5
             
             #cv2.imshow('Original Image', cv_image)
+            cv2.imshow('BEV Image', bev_image)
             cv2.imshow('Filtered Image', filtered_image)
             cv2.imshow('Detected Cones', cv_image_copy)
             cv2.waitKey(50) # 영상 재생 속도 조절
+           
+def bev_transform(image, src_points, dst_points, size):
+        matrix = cv2.getPerspectiveTransform(src_points, dst_points)
+        bev_img = cv2.warpPerspective(image, matrix, size)
+        cv2.imshow('bev', bev_img)
+        return bev_img
 
             
 
 
 
 if __name__ == "__main__":
-    bag_file_path = '/home/handh0405/colorfilter1.bag'  # 여기에 자신의 bag 파일 경로를 입력하세요
+    bag_file_path = '/home/kwonnakyeong/Downloads/colorfilter1.bag'  # 여기에 자신의 bag 파일 경로를 입력하세요
     topic_name = '/usb_cam/image_raw'  # 확인한 토픽 이름으로 수정
     read_bag_file(bag_file_path, topic_name)
     cv2.destroyAllWindows()
