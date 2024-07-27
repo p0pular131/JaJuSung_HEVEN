@@ -1,13 +1,14 @@
 import statistics
 import cv2
-import numpy as np
 import rospy
 import pcl
-from std_msgs.msg import Header
-from sensor_msgs.msg import PointCloud2 
-import sensor_msgs.point_cloud2 as pc2 
 import struct 
 import random
+import numpy as np
+import sensor_msgs.point_cloud2 as pc2 
+
+from std_msgs.msg import Header
+from sensor_msgs.msg import PointCloud2 
 
 def generate_color(index):
     """ Generate a unique RGB color based on the index. """
@@ -21,6 +22,21 @@ def plot_dots(coordinates,height, width):
     cv2.circle(frame, (width//2, height//2), 5, (0,255,255), -1)
 
     return frame
+
+def split_dots_by_origin(coordinates, origin):  # TODO: requires camera fusion
+    origin_x, origin_y = origin
+    left_dots_array = []
+    right_dots_array = []
+        
+    for coordinate in coordinates:
+        x, y = int(coordinate[0]), int(coordinate[1])
+        coordinate_array = [x, y]
+        if x <= origin_x and y <= origin_y:
+            left_dots_array.append(coordinate_array)
+        elif x > origin_x and y <= origin_y:
+            right_dots_array.append(coordinate_array)
+
+    return (np.array(left_dots_array), np.array(right_dots_array))
 
 def ros_to_pcl(ros_cloud):
     """ Converts a ROS PointCloud2 message to a PCL PointCloud """
@@ -69,13 +85,29 @@ def pcl_to_ros(pcl_array, color=None):
     rospy.loginfo("PCL to ROS conversion complete")
     return ros_msg
 
+def draw_polyfit_lane(frame, clustered_dots, dim=2):
+    x_coords = clustered_dots[:, 0]
+    y_coords = clustered_dots[:, 1]
+    coeffecients = np.polyfit(x_coords, y_coords, dim)
+    polynomial = np.poly1d(coeffecients)
 
+    x_dense = np.linspace(min(x_coords), max(x_coords), 100).astype(int)
+    y_dense = polynomial(x_dense).astype(int)
 
-def make_cv2(cluster_indices, cloud_filtered,pub):
+    previous_point = None
+    for point in zip(x_dense, y_dense):
+        if previous_point is not None:
+            cv2.line(frame, previous_point, point, (255, 0, 0), 2)
+        previous_point = point
 
+def make_cv2(cluster_indices, cloud_filtered, pub, image_size=(800, 600)):
+    WIDTH, HEIGHT = image_size
+    ROAD_WIDTH = 80  # in pixels
+    coordinates = [(WIDTH//2 - ROAD_WIDTH, HEIGHT//2),
+                   (WIDTH//2 + ROAD_WIDTH, HEIGHT//2)]
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (800, 600))
-    coordinates = []
+    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (WIDTH, HEIGHT))
+
     for idx, indices in enumerate(cluster_indices):
         points = [cloud_filtered[i] for i in indices]
         x_coords, y_coords, z_coords = zip(*[(point[0], point[1], point[2]) for point in points])
@@ -84,27 +116,29 @@ def make_cv2(cluster_indices, cloud_filtered,pub):
         pub.publish(cluster_msg)
 
         print(statistics.median(x_coords),statistics.median(y_coords))
-        width = 800
-        height= 600
-        center_x, center_y = width // 2, height // 2
+        center_x, center_y = WIDTH // 2, HEIGHT // 2
         centroid_y = center_y - (statistics.median(x_coords)*40)
         centroid_x = center_x - (statistics.median(y_coords)*40)
         coordinates.append((centroid_x, centroid_y))
-        # print(centroid_x,centroid_y)
-        frame = plot_dots(coordinates,height,width)
-        for i in range(0, width, 40):
-            cv2.line(frame, (i, 0), (i, height), (255, 255, 255), 1)
-        for j in range(0, height, 40):
-            cv2.line(frame, (0, j), (width, j), (255, 255, 255), 1)
-        cv2.imshow('Frame with Multiple Red Dots', frame)
-        out.write(frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+    
+    frame = plot_dots(coordinates, HEIGHT, WIDTH)
+    left_dots_array, right_dots_array = split_dots_by_origin(coordinates=coordinates,
+                                                             origin=(WIDTH//2, HEIGHT//2))
+    if left_dots_array.shape[0] > 1:
+        draw_polyfit_lane(frame, left_dots_array)
+    
+    if right_dots_array.shape[0] > 1:
+        draw_polyfit_lane(frame, right_dots_array)
 
-    cv2.waitKey(1)
-    out.release()
+    for i in range(0, WIDTH, 40):
+        cv2.line(frame, (i, 0), (i, HEIGHT), (255, 255, 255), 1)
+    for j in range(0, HEIGHT, 40):
+        cv2.line(frame, (0, j), (WIDTH, j), (255, 255, 255), 1)
+    cv2.imshow('Frame with Multiple Red Dots', frame)
+    # out.write(frame)
+    # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #     break
 
-
-
-
+    # cv2.waitKey(1)
+    # out.release()
 
