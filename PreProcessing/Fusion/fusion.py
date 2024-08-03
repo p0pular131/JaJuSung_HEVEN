@@ -56,9 +56,9 @@ extrinsic_matrix = np.hstack((R,T))
 #                             [ 9.17007045e-01, -1.75270499e-01 , 3.58299221e-01 ,-2.58618128e+02]])
 
 extrinsic_matrix = np.array(
-[[ 0.05349557, -0.99844565,  0.01563654, -0.11116417],
- [-0.01855681, -0.01665027, -0.99968916, -0.08304952],
- [ 0.99839565,  0.05318878, -0.01941868, -0.29001238]]
+[[ 0.05295328, -0.99799799, -0.03458266,  0.0826162 ],
+ [ 0.04563755,  0.03701367, -0.99827211, -0.24284274],
+ [ 0.99755359,  0.05128351,  0.04750618, -0.36089244]]
 )
 
 def do_voxel_grid_downssampling(pcl_data,leaf_size):
@@ -96,19 +96,19 @@ class Fusion():
         # cloud = do_voxel_grid_downssampling(cloud_orin, 0.1)
         # ROI
         filter_axis = 'z'
-        axis_min = 0.1
-        axis_max = 1.7
+        axis_min = 0.0
+        axis_max = 2.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
 
-        filter_axis = 'y'
-        axis_min = -1.0
-        axis_max = 1.0
-        cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
+        # filter_axis = 'y'
+        # axis_min = -1.0
+        # axis_max = 1.0
+        # cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         
         # pcd -> 3.5, 3.8
         filter_axis = 'x'
         axis_min = 3.0
-        axis_max = 4.0
+        axis_max = 12.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
 
         roi_cloud = pcl_helper.pcl_to_ros(cloud)
