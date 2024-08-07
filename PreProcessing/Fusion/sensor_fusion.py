@@ -39,6 +39,7 @@ R_axis = np.array([[0, -1, 0],
 # 최종 회전 행렬
 R = R_z @ R_y @ R_x @ R_axis
 
+
 # 외부 파라미터 행렬 정의
 extrinsic_matrix = np.array(
 [[ 0.05295328, -0.99799799, -0.03458266,  0.0826162 ],
@@ -53,6 +54,18 @@ def do_passthrough(pcl_data, filter_axis, axis_min, axis_max):
     passthrough.set_filter_limits(axis_min, axis_max)
     return passthrough.filter()
 
+def do_voxel_grid_downsampling(pcl_data, leaf_size):
+    # Voxel Grid Filter를 사용한 다운샘플링
+    vox = pcl_data.make_voxel_grid_filter()
+    vox.set_leaf_size(leaf_size, leaf_size, leaf_size)  # 리프 크기가 클수록 정보가 적게 유지됨
+    return vox.filter()
+
+def do_passthrough(pcl_data, filter_axis, axis_min, axis_max):
+    # 축 기반 필터링
+    passthrough = pcl_data.make_passthrough_filter()
+    passthrough.set_filter_field_name(filter_axis)
+    passthrough.set_filter_limits(axis_min, axis_max)
+    return passthrough.filter()
 class Fusion():
     def __init__(self):
         self.bridge = CvBridge()
