@@ -3,7 +3,8 @@ import cv2
 import numpy as np
 import pcl  # Python PCL 라이브러리
 import sensor_msgs.point_cloud2 as pc2
-
+from sensor_msgs.msg import PointField
+import std_msgs.msg
 import lidar_pcl_helper as pcl_helper
 from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
@@ -47,13 +48,6 @@ extrinsic_matrix = np.array(
  [ 0.99755359,  0.05128351,  0.04750618, -0.36089244]]
 )
 
-def do_passthrough(pcl_data, filter_axis, axis_min, axis_max):
-    # 축 기반 필터링
-    passthrough = pcl_data.make_passthrough_filter()
-    passthrough.set_filter_field_name(filter_axis)
-    passthrough.set_filter_limits(axis_min, axis_max)
-    return passthrough.filter()
-
 def do_voxel_grid_downsampling(pcl_data, leaf_size):
     # Voxel Grid Filter를 사용한 다운샘플링
     vox = pcl_data.make_voxel_grid_filter()
@@ -66,6 +60,7 @@ def do_passthrough(pcl_data, filter_axis, axis_min, axis_max):
     passthrough.set_filter_field_name(filter_axis)
     passthrough.set_filter_limits(axis_min, axis_max)
     return passthrough.filter()
+
 class Fusion():
     def __init__(self):
         self.bridge = CvBridge()
@@ -76,6 +71,11 @@ class Fusion():
         self.image_sub = rospy.Subscriber("usb_cam/image_raw", Image, self.camera_callback)
         self.lidar_sub = rospy.Subscriber("/livox/lidar", PointCloud2, self.lidar_callback)
         self.roi_pub = rospy.Publisher('/roi_pointcloud', PointCloud2, queue_size=10)
+        self.blue_pub = rospy.Publisher('/cloud_blue',PointCloud2, queue_size=10)
+        self.yellow_pub = rospy.Publisher('/cloud_yellow',PointCloud2, queue_size=10)
+
+        self.yellow_cloud = PointCloud2()
+        self.blue_cloud = PointCloud2()
 
         # 각 라바콘 영역 내의 LiDAR 포인트 저장
         self.blue_cone_points = []
@@ -178,11 +178,13 @@ class Fusion():
                     cv2.circle(self.image, coord, 2, (0, 255, 255), -1)  # 노란색으로 표시
 
         # 결과 출력
-        print("Blue cone LiDAR points:", self.blue_cone_points)
-        print("Yellow cone LiDAR points:", self.yellow_cone_points)
-
-        cv2.imshow("Result", self.image)
-        cv2.waitKey(1)
+        # print("Blue cone LiDAR points:", self.blue_cone_points)
+        # print("Yellow cone LiDAR points:", self.yellow_cone_points)
+                    
+        # cv2.imshow("Result", self.image)
+        # cv2.waitKey(1)
+                    
+        self.publish_clouds()
     
     def is_point_in_cone(self, coord, cone_coords, radius=20):
         """
@@ -192,6 +194,25 @@ class Fusion():
             if (coord[0] - cx) ** 2 + (coord[1] - cy) ** 2 <= radius ** 2:
                 return True
         return False
+    
+    def publish_clouds(self) :
+        header = std_msgs.msg.Header()
+        header.stamp = rospy.Time.now()
+        header.frame_id = "livox_frame"
+
+        fields = [
+            PointField('x', 0, PointField.FLOAT32, 1),
+            PointField('y', 4, PointField.FLOAT32, 1),
+            PointField('z', 8, PointField.FLOAT32, 1)
+        ]
+
+        if self.blue_cone_points:
+            self.blue_cloud = pc2.create_cloud(header, fields, self.blue_cone_points)
+            self.blue_pub.publish(self.blue_cloud)
+
+        if self.yellow_cone_points:
+            self.yellow_cloud = pc2.create_cloud(header, fields, self.yellow_cone_points)
+            self.yellow_pub.publish(self.yellow_cloud)
 
 if __name__ == "__main__":
     if not rospy.is_shutdown():
