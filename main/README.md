@@ -1,5 +1,10 @@
-실제 차량에 실을 Package를 위한 레포입니다.  
+# 센서 드라이버 작동
 
-아직은 건들 X X X X  
-  
-  
+    roslaunch jajusung_main sensor.launch
+
+***
+# main 파일
+
+    roslaunch jajusung_main main.launch
+
+***
