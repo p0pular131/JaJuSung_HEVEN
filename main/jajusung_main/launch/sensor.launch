@@ -1,0 +1,14 @@
+<launch>
+
+    <arg name="project" default="jajusung"/>
+
+    <!-- lidar driver -->
+    <include file="$(find livox_ros_driver)/launch/livox_lidar.launch" />
+
+    <!-- gps driver -->
+    <include file="$(find ublox_gps)/launch/ublox_zed-f9p.launch" />
+
+    <!-- camera driver -->
+    <include file="$(find usb_cam)/launch/usb_cam-test.launch" />
+
+</launch>

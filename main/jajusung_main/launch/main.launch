@@ -1,0 +1,4 @@
+<launch>
+    <!-- camera lidar calibration -->
+    <node nmae="calibNode" pkg="jajusung_heven" tybpe="sensor_fusion.py" output="screen" />
+</launch>
