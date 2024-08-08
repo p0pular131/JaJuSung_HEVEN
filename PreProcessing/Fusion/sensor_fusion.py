@@ -127,6 +127,9 @@ class Fusion():
     def lidar_callback(self, data):
         # PointCloud2 메시지를 PCL 포맷으로 변환
         pcl_cloud = pcl_helper.ros_to_pcl(data)
+        
+        # downsampling leaf size는 tuning 필요. 
+        pcl_cloud = do_voxel_grid_downsampling(pcl_cloud, 0.2)
 
         # ROI 설정 및 필터링
         filter_axis = 'z'
@@ -181,8 +184,8 @@ class Fusion():
         # print("Blue cone LiDAR points:", self.blue_cone_points)
         # print("Yellow cone LiDAR points:", self.yellow_cone_points)
                     
-        # cv2.imshow("Result", self.image)
-        # cv2.waitKey(1)
+        cv2.imshow("Result", self.image)
+        cv2.waitKey(1)
                     
         self.publish_clouds()
     
