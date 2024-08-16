@@ -11,20 +11,20 @@ from std_msgs.msg import Header, Float32MultiArray
 from sensor_msgs.msg import PointCloud2
 
 
-def split_dots_by_origin(coordinates, origin):
-    origin_x, origin_y = origin
-    left_dots_array = []
-    right_dots_array = []
+def split_centroids_by_color(centroids):
+    left_centroids = []
+    right_centroids = []
 
-    for coordinate in coordinates:
-        x, y = int(coordinate[0]), int(coordinate[1])
-        coordinate_array = [x, y]
-        if x <= origin_x and y <= origin_y:
-            left_dots_array.append(coordinate_array)
-        elif x > origin_x and y <= origin_y:
-            right_dots_array.append(coordinate_array)
+    for centroid, color in centroids:
+        centroid_list = list(centroid)
+        if color == "yellow":
+            left_centroids.append(centroid_list)
+        elif color == "blue":
+            right_centroids.append(centroid_list)
+        else:
+            raise NotImplementedError()
 
-    return (np.array(left_dots_array), np.array(right_dots_array))
+    return (np.array(left_centroids), np.array(right_centroids))
 
 
 def ros_to_pcl(ros_cloud):
@@ -126,11 +126,8 @@ def clustering(bev_points_list):
 def make_cv2(clouds, image_size=(800, 600)):
     WIDTH, HEIGHT = image_size
     frame = np.zeros((600, 800, 3), dtype="uint8") + 255
-    ROAD_WIDTH = 80  # in pixels
-    coordinates = [
-        (WIDTH // 2 - ROAD_WIDTH, HEIGHT // 2),
-        (WIDTH // 2 + ROAD_WIDTH, HEIGHT // 2),
-    ]
+    centroids_image_coord = []
+
     for cloud in clouds:
         cloud_filtered, cluster_indices, color = cloud
         for idx, indices in enumerate(cluster_indices):
@@ -148,16 +145,16 @@ def make_cv2(clouds, image_size=(800, 600)):
             )
             centroid_y = center_y + (-statistics.median(x_coords) * 60) + 550
             centroid_x = center_x + (-statistics.median(y_coords) * 50)
-            cv2.circle(frame, (int(centroid_x), int(centroid_y)), 10, color_rgb, -1)
+            centroid_image_coord = (int(centroid_x), int(centroid_y))
+            cv2.circle(frame, centroid_image_coord, 10, color_rgb, -1)
+            centroids_image_coord.append((centroid_image_coord, color))
 
-    left_dots_array, right_dots_array = split_dots_by_origin(
-        coordinates=coordinates, origin=(WIDTH // 2, HEIGHT // 2)
-    )
-    if left_dots_array.shape[0] > 1:
-        draw_polyfit_lane(frame, left_dots_array)
+    left_lane_centroids, right_lane_centroids = split_centroids_by_color(centroids_image_coord)
+    if left_lane_centroids.shape[0] > 1:
+        draw_polyfit_lane(frame, left_lane_centroids)
 
-    if right_dots_array.shape[0] > 1:
-        draw_polyfit_lane(frame, right_dots_array)
+    if right_lane_centroids.shape[0] > 1:
+        draw_polyfit_lane(frame, right_lane_centroids)
 
     for i in range(0, WIDTH, 40):
         cv2.line(frame, (i, 0), (i, HEIGHT), (0, 0, 0), 1)
@@ -171,4 +168,4 @@ def make_cv2(clouds, image_size=(800, 600)):
     cv2.waitKey(1)
     # out.release()
 
-    return left_dots_array, right_dots_array
+    return left_lane_centroids, right_lane_centroids

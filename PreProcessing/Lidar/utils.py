@@ -7,7 +7,7 @@ import random
 import numpy as np
 import sensor_msgs.point_cloud2 as pc2 
 
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Float32MultiArray
 from sensor_msgs.msg import PointCloud2 
 
 def generate_color(index):
@@ -15,7 +15,7 @@ def generate_color(index):
     random.seed(index)
     return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-def plot_dots(coordinates,height, width):
+def plot_dots(coordinates, height, width):
     frame = np.zeros((600, 800, 3), dtype=np.uint8)
     for x, y in coordinates:
         cv2.circle(frame, (int(x), int(y)), 5, (0, 255, 0), -1)
@@ -100,6 +100,11 @@ def draw_polyfit_lane(frame, clustered_dots, dim=2):
             cv2.line(frame, previous_point, point, (255, 0, 0), 2)
         previous_point = point
 
+def list_to_multiarray(list_value):
+    msg = Float32MultiArray()
+    msg.data = list_value
+    return msg
+
 def make_cv2(cluster_indices, cloud_filtered, pub, image_size=(800, 600)):
     WIDTH, HEIGHT = image_size
     ROAD_WIDTH = 80  # in pixels
@@ -115,7 +120,7 @@ def make_cv2(cluster_indices, cloud_filtered, pub, image_size=(800, 600)):
         cluster_msg = pcl_to_ros(points,color)
         pub.publish(cluster_msg)
 
-        print(statistics.median(x_coords),statistics.median(y_coords))
+        # print(statistics.median(x_coords), (statistics.median(y_coords)
         center_x, center_y = WIDTH // 2, HEIGHT // 2
         centroid_y = center_y - (statistics.median(x_coords)*40)
         centroid_x = center_x - (statistics.median(y_coords)*40)
@@ -139,6 +144,7 @@ def make_cv2(cluster_indices, cloud_filtered, pub, image_size=(800, 600)):
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #     break
 
-    # cv2.waitKey(1)
+    cv2.waitKey(1)
     # out.release()
 
+    return left_dots_array, right_dots_array
