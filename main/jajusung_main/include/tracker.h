@@ -10,7 +10,6 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <erp42_msgs/DriveCmd.h>
 #include <erp42_msgs/ModeCmd.h>
-#include <morai_msgs/EgoVehicleStatus.h>
 #include <lane_ctrl/lane_info.h>
 #include <tf/transform_datatypes.h>
 #include <vector>

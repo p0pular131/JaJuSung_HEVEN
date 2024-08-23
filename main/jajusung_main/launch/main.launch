@@ -4,4 +4,8 @@
 
     <!-- 새로운 클라우드 추출 노드 -->
     <node name="cloudExtractor" pkg="jajusung_main" type="cluster_extraction.py" output="screen" />
+
+    <!-- 새로운 클라우드 추출 노드 -->
+    <node name="lane_follower" pkg="jajusung_main" type="lane_follower" output="screen" />
+
 </launch>
