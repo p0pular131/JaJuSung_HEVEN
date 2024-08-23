@@ -1,0 +1,9 @@
+# global_path txt파일의 절대경로 
+path_folder: "/home/heven/erp_ws/src/heven_m_m/map/target/interpolated_data.csv"
+
+# 0은 그냥, 1은 EKF
+ekf_mode: 0
+lane_stanley_k: 0.4
+path_stanley_k: 0.25
+look_ahead_distance: 3.5
+velocity_profile: 10
