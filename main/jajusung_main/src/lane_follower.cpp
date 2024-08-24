@@ -3,10 +3,12 @@
 #include <iostream>
 
 Lane_Controller::Lane_Controller(EKF* input, ros::NodeHandle &nh) {
-    nh.getParam("ekf_mode", ekf_mode);
-    nh.getParam("lane_stanley_k", LANE_K);
-    nh.getParam("velocity_profile", VEL);
-    
+    // nh.getParam("ekf_mode", ekf_mode);
+    // nh.getParam("lane_stanley_k", LANE_K);
+    // nh.getParam("velocity_profile", VEL);
+    ekf_mode = 0;
+    LANE_K = 0.45;
+    VEL = 5;
     lane_ekf = input;
     lane_ekf->dt = 0.037; lane_ekf->k = LANE_K; lane_ekf->wb = WB;
 

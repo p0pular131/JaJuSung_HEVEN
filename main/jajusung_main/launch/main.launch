@@ -1,5 +1,6 @@
 <launch>
-    <!-- 기존의 센서 퓨전 노드 -->
+
+    <!-- <rosparam file="$(find jajusung_main)/config/params.yaml" command="load/>"/> -->
     <node name="calibNode" pkg="jajusung_main" type="sensor_fusion.py" output="screen" />
 
     <!-- 새로운 클라우드 추출 노드 -->

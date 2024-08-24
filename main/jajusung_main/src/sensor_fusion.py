@@ -42,12 +42,11 @@ R_axis = np.array([[0, -1, 0],
 # 최종 회전 행렬
 R = R_z @ R_y @ R_x @ R_axis
 
-
 # 외부 파라미터 행렬 정의
 extrinsic_matrix = np.array(
-[[ 0.05295328, -0.99799799, -0.03458266,  0.0826162 ],
- [ 0.04563755,  0.03701367, -0.99827211, -0.24284274],
- [ 0.99755359,  0.05128351,  0.04750618, -0.36089244]]
+[[ 0.06060704, -0.99802871,  0.01629351, -0.04498142],
+ [ 0.05040392, -0.01324265, -0.99864112,  0.05205786],
+ [ 0.99688827,  0.06134594,  0.04950196,  0.51905197]]
 )
 
 def do_voxel_grid_downsampling(pcl_data, leaf_size):
@@ -71,7 +70,7 @@ class Fusion():
         rospy.init_node("Fusion_node", anonymous=False)
 
         self.image_sub = rospy.Subscriber("usb_cam/image_raw", Image, self.camera_callback)
-        self.lidar_sub = rospy.Subscriber("/livox/lidar", PointCloud2, self.lidar_callback)
+        self.lidar_sub = rospy.Subscriber("/velodyne_points", PointCloud2, self.lidar_callback)
         self.roi_pub = rospy.Publisher('/roi_pointcloud', PointCloud2, queue_size=10)
         self.blue_pub = rospy.Publisher('/cloud_blue',PointCloud2, queue_size=10)
         self.yellow_pub = rospy.Publisher('/cloud_yellow',PointCloud2, queue_size=10)
@@ -95,14 +94,16 @@ class Fusion():
         hsv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
         # 색상 범위 정의
-        lower_blue = np.array([90, 190, 100])    # 파란색 범위
+        lower_blue = np.array([90, 100, 40])    # 파란색 범위
         upper_blue = np.array([150, 255, 255])
-        lower_yellow = np.array([5, 130, 160])  # 노란색 범위
+        lower_yellow = np.array([5, 70, 120])  # 노란색 범위
         upper_yellow = np.array([30, 255, 255])
         
         # HSV 이미지에서 파란색과 노란색만 추출
         mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
         mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
+
+        cv2.imshow("mask",mask_blue)
         
         # 각 색상의 마스크에서 컨투어 찾기
         contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -134,14 +135,14 @@ class Fusion():
         pcl_cloud = do_voxel_grid_downsampling(pcl_cloud, 0.2)
 
         # ROI 설정 및 필터링
-        filter_axis = 'z'
+        filter_axis = 'x'
         axis_min = 0.0
-        axis_max = 2.0
+        axis_max = 12.0
         cloud = do_passthrough(pcl_cloud, filter_axis, axis_min, axis_max)
 
-        filter_axis = 'x'
-        axis_min = 3.0
-        axis_max = 12.0
+        filter_axis = 'y'
+        axis_min = -3.0
+        axis_max = 3.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
 
         # 필터링된 포인트 클라우드를 PointCloud2 메시지로 변환
