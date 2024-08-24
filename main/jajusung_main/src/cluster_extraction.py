@@ -5,6 +5,7 @@ import rospy
 import numpy as np
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2
+from jajusung_main.msg import lane_info
 from std_msgs.msg import Float32MultiArray
 from utils import make_cv2, pcl_to_ros, ros_to_pcl, list_to_multiarray, clustering
 from message_filters import Subscriber, ApproximateTimeSynchronizer
@@ -31,7 +32,9 @@ class LiDARProcessor:
         self.lane_offset_publisher = rospy.Publisher(
             "/lane_offset", Float32MultiArray, queue_size=10
         )
-
+        self.lane_info_publisher = rospy.Publisher(
+            "lane_result", lane_info, queue_size=10
+        )
         self.previous_lane_angle = [90, 90]
         self.previous_lane_offset = [350, 450]
 
@@ -90,6 +93,14 @@ class LiDARProcessor:
             lane_offset = [left_lane_offset, right_lane_offset]
             lane_offset_msg = list_to_multiarray(lane_offset)
             self.lane_offset_publisher.publish(lane_offset_msg)
+
+            curr_info = lane_info()
+            curr_info.left_x = left_lane_offset
+            curr_info.right_x = right_lane_offset
+            curr_info.left_theta = left_lane_angle
+            curr_info.right_theta = right_lane_angle
+
+            self.lane_info_publisher.publish(curr_info)
 
     def is_right_lane_reliable(self):
         return self.right_cluster_dots.shape[0] > 1
