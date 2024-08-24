@@ -25,12 +25,15 @@ class LiDARProcessor:
         self.filtered_cloud_publisher = rospy.Publisher(
             "/filtered_cloud", PointCloud2, queue_size=10
         )
-
         self.lane_angle_publisher = rospy.Publisher(
             "/lane_angle", Float32MultiArray, queue_size=10
         )
+        self.lane_offset_publisher = rospy.Publisher(
+            "/lane_offset", Float32MultiArray, queue_size=10
+        )
 
-        self.previous_lane_angle = [0, 0]
+        self.previous_lane_angle = [90, 90]
+        self.previous_lane_offset = [350, 450]
 
     def cloud_callback_yellow(self, cloud_msg):
         rospy.loginfo("Received PointCloud2 message from yellow cloud")
@@ -75,12 +78,18 @@ class LiDARProcessor:
             self.left_cluster_dots, self.right_cluster_dots = make_cv2(clouds)
             # cv2.detstroyAllWindows()
 
-            # Calculate angles for control
+            # Calculate angles and offsets for control
             left_lane_angle = self.get_average_lane_angle("left")
             right_lane_angle = self.get_average_lane_angle("right")
             lane_angle = [left_lane_angle, right_lane_angle]
             lane_angle_msg = list_to_multiarray(lane_angle)
             self.lane_angle_publisher.publish(lane_angle_msg)
+
+            left_lane_offset = self.get_average_lane_offset("left")
+            right_lane_offset = self.get_average_lane_offset("right")
+            lane_offset = [left_lane_offset, right_lane_offset]
+            lane_offset_msg = list_to_multiarray(lane_offset)
+            self.lane_offset_publisher.publish(lane_offset_msg)
 
     def is_right_lane_reliable(self):
         return self.right_cluster_dots.shape[0] > 1
@@ -90,10 +99,10 @@ class LiDARProcessor:
 
     def get_average_lane_angle(self, side):
         """
-        : Calculates angle of a lane from the positive x-axis.
-          Each angle is calculated from two neighboring points and the angles are averaged lastly.
-        Input : side of the lane with respect to the vehicle (str)
-        Returns : mean angle from positive x-axis in degress (float)
+        Calculates angle of a lane from the positive x-axis.
+        Each angle is calculated from two neighboring points and the angles are averaged lastly.
+          - Input : side of the lane with respect to the vehicle (str)
+          - Returns : mean angle from positive x-axis in degress (float)
         """
         assert (side == "left") or (side == "right")
         if side == "left" and not self.is_left_lane_reliable():
@@ -126,6 +135,36 @@ class LiDARProcessor:
             self.previous_lane_angle[1] = average_lane_angle
 
         return average_lane_angle
+    
+    def get_average_lane_offset(self, side):
+        """
+        Calculates offset of a lane from the left side of image coordinate.
+          - Input : side of the lane with respect to the vehicle (str)
+          - Returns : offset from left side of image in pixels (float)
+        """
+        assert (side == "left") or (side == "right")
+        if side == "left" and not self.is_left_lane_reliable():
+            return self.previous_lane_angle[0]
+        elif side == "right" and (not self.is_right_lane_reliable()):
+            return self.previous_lane_angle[1]
+
+        cluster_dots = (
+            self.left_cluster_dots if side == "left" else self.right_cluster_dots
+        )
+        sorted_cluster_dots = cluster_dots[np.argsort(cluster_dots[:, 1])]
+
+        # calculate offset
+        offset_sum = 0
+        for cluster_dot in sorted_cluster_dots:
+            offset_sum += cluster_dot[0]
+
+        average_lane_offset = offset_sum / sorted_cluster_dots.shape[0]
+        if side == "left":
+            self.previous_lane_angle[0] = average_lane_offset
+        else:
+            self.previous_lane_angle[1] = average_lane_offset
+
+        return average_lane_offset
 
 
 if __name__ == "__main__":
