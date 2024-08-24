@@ -144,9 +144,9 @@ class LiDARProcessor:
         """
         assert (side == "left") or (side == "right")
         if side == "left" and not self.is_left_lane_reliable():
-            return self.previous_lane_angle[0]
+            return self.previous_lane_offset[0]
         elif side == "right" and (not self.is_right_lane_reliable()):
-            return self.previous_lane_angle[1]
+            return self.previous_lane_offset[1]
 
         cluster_dots = (
             self.left_cluster_dots if side == "left" else self.right_cluster_dots
@@ -160,9 +160,9 @@ class LiDARProcessor:
 
         average_lane_offset = offset_sum / sorted_cluster_dots.shape[0]
         if side == "left":
-            self.previous_lane_angle[0] = average_lane_offset
+            self.previous_lane_offset[0] = average_lane_offset
         else:
-            self.previous_lane_angle[1] = average_lane_offset
+            self.previous_lane_offset[1] = average_lane_offset
 
         return average_lane_offset
 
