@@ -95,8 +95,8 @@ class LiDARProcessor:
             self.lane_offset_publisher.publish(lane_offset_msg)
 
             curr_info = lane_info()
-            curr_info.left_x = left_lane_offset
-            curr_info.right_x = right_lane_offset
+            curr_info.left_x = int(left_lane_offset)
+            curr_info.right_x = int(right_lane_offset)
             curr_info.left_theta = left_lane_angle
             curr_info.right_theta = right_lane_angle
 
@@ -147,11 +147,11 @@ class LiDARProcessor:
 
         return average_lane_angle
     
-    def get_average_lane_offset(self, side):
+    def get_average_lane_offset(self, side, center=400):
         """
-        Calculates offset of a lane from the left side of image coordinate.
+        Calculates offset of a lane from the center of image coordinate.
           - Input : side of the lane with respect to the vehicle (str)
-          - Returns : offset from left side of image in pixels (float)
+          - Returns : absolute value of offset from center of image in pixels (float)
         """
         assert (side == "left") or (side == "right")
         if side == "left" and not self.is_left_lane_reliable():
@@ -167,7 +167,8 @@ class LiDARProcessor:
         # calculate offset
         offset_sum = 0
         for cluster_dot in sorted_cluster_dots:
-            offset_sum += cluster_dot[0]
+            offset = abs(center-cluster_dot[0])
+            offset_sum += offset
 
         average_lane_offset = offset_sum / sorted_cluster_dots.shape[0]
         if side == "left":

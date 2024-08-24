@@ -165,7 +165,7 @@ def make_cv2(clouds, image_size=(800, 600)):
     # if cv2.waitKey(1) & 0xFF == ord('q'):
     #     break
 
-    cv2.waitKey(25)
+    cv2.waitKey(10)
     # out.release()
 
     return left_lane_centroids, right_lane_centroids
