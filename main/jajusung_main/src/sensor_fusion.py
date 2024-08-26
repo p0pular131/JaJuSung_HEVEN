@@ -94,16 +94,18 @@ class Fusion():
         hsv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
         # 색상 범위 정의
-        lower_blue = np.array([90, 100, 40])    # 파란색 범위
+        # lower_blue = np.array([90, 100, 40])    # 파란색 범위
+        lower_blue = np.array([90, 190, 100])    # 파란색 범위
         upper_blue = np.array([150, 255, 255])
+
         lower_yellow = np.array([5, 70, 120])  # 노란색 범위
+        # lower_yellow = np.array([5, 130, 160])  # 노란색 범위
         upper_yellow = np.array([30, 255, 255])
+
         
         # HSV 이미지에서 파란색과 노란색만 추출
         mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
         mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
-
-        cv2.imshow("mask",mask_blue)
         
         # 각 색상의 마스크에서 컨투어 찾기
         contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -132,7 +134,7 @@ class Fusion():
         pcl_cloud = pcl_helper.ros_to_pcl(data)
         
         # downsampling leaf size는 tuning 필요. 
-        pcl_cloud = do_voxel_grid_downsampling(pcl_cloud, 0.2)
+        pcl_cloud = do_voxel_grid_downsampling(pcl_cloud, 0.5)
 
         # ROI 설정 및 필터링
         filter_axis = 'x'
