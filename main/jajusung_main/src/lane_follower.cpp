@@ -6,7 +6,6 @@ Lane_Controller::Lane_Controller(EKF* input, ros::NodeHandle &nh) {
     nh.getParam("ekf_mode", ekf_mode);
     nh.getParam("lane_stanley_k", LANE_K);
     nh.getParam("velocity_profile", VEL);
-    
     lane_ekf = input;
     lane_ekf->dt = 0.037; lane_ekf->k = LANE_K; lane_ekf->wb = WB;
 
@@ -32,12 +31,12 @@ void Lane_Controller::lane_cb(const lane_ctrl::lane_info::ConstPtr& data) {
 }
 
 void Lane_Controller::stanley() {
-    if(this_left == 160) {
-        lat_err = (0.5-(this_right/320.0))*WIDTH;
+    if(this_left == 200) {
+        lat_err = (0.5-(this_right/400.0))*WIDTH;
         heading_err = PI/2 - right_theta;
     }
-    else if(this_right == 160) {
-        lat_err = -(0.5-(this_left/320))*WIDTH;
+    else if(this_right == 200) {
+        lat_err = -(0.5-(this_left/400.0))*WIDTH;
         heading_err = -(PI/2 - left_theta);
     }
     else{

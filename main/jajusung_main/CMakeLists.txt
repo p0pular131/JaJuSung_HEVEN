@@ -19,7 +19,7 @@ find_package(Eigen3 REQUIRED)
 add_message_files(
   FILES
   # ERP42CtrlCmd.msg
-  # lane_info.msg
+  lane_info.msg
 )
 
 generate_messages(
