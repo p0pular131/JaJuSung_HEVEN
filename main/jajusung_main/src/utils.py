@@ -77,7 +77,7 @@ def pcl_to_ros(pcl_array, color=None):
     return ros_msg
 
 
-def draw_polyfit_lane(frame, clustered_dots, dim=2):
+def draw_polyfit_lane(frame, clustered_dots, dim=1):
     x_coords = clustered_dots[:, 0]
     y_coords = clustered_dots[:, 1]
     coeffecients = np.polyfit(x_coords, y_coords, dim)

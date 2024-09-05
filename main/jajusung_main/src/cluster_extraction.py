@@ -79,17 +79,30 @@ class LiDARProcessor:
 
             # Visualization
             self.left_cluster_dots, self.right_cluster_dots = make_cv2(clouds)
-            # cv2.detstroyAllWindows()
 
             # Calculate angles and offsets for control
             left_lane_angle = self.get_average_lane_angle("left")
             right_lane_angle = self.get_average_lane_angle("right")
+            left_lane_offset = self.get_average_lane_offset("left")
+            right_lane_offset = self.get_average_lane_offset("right")
+
+            # Exception handling for single side lane detection
+            if self.is_left_lane_reliable() ^ self.is_right_lane_reliable():
+                rospy.loginfo("Sigle lane detected")
+                if self.is_right_lane_reliable():
+                    left_lane_offset = 200
+                    left_lane_angle = right_lane_angle
+                    self.previous_lane_angle[0] = left_lane_angle
+                if self.is_left_lane_reliable():
+                    right_lane_offset = 200
+                    right_lane_angle = left_lane_angle
+                    self.previous_lane_angle[1] = right_lane_angle
+
+            # Publish
             lane_angle = [left_lane_angle, right_lane_angle]
             lane_angle_msg = list_to_multiarray(lane_angle)
             self.lane_angle_publisher.publish(lane_angle_msg)
 
-            left_lane_offset = self.get_average_lane_offset("left")
-            right_lane_offset = self.get_average_lane_offset("right")
             lane_offset = [left_lane_offset, right_lane_offset]
             lane_offset_msg = list_to_multiarray(lane_offset)
             self.lane_offset_publisher.publish(lane_offset_msg)
