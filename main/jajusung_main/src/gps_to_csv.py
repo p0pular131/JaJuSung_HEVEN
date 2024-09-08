@@ -2,14 +2,14 @@
 
 import rospy
 import csv
-from morai_msgs.msg import GPSMessage
+from sensor_msgs.msg import NavSatFix
 from math import *
 
 csv_file_path = 'gps_test.csv'
 
 data_list = []
 
-CNT = 2
+CNT = 10
 
 class GpsTracker():
     def __init__(self):
@@ -18,13 +18,13 @@ class GpsTracker():
         
         rospy.init_node("recording_node")
         rospy.sleep(1)
-        rospy.Subscriber("/gps", GPSMessage, self._gps_callback)
+        rospy.Subscriber("/ublox_gps/fix", NavSatFix, self._gps_callback)
         rospy.loginfo("Gps Tracker Node on. Waiting for topics...")
 
         rospy.spin()
 
     # Functions
-    def _gps_callback(self, data=GPSMessage):
+    def _gps_callback(self, data=NavSatFix):
         if self.cnt % CNT == 0:
             data_list.append([data.latitude, data.longitude])
             rospy.loginfo("Get row #%3d.", self.idx_cnt / CNT)
