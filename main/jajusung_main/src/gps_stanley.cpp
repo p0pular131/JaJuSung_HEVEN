@@ -8,10 +8,11 @@
 void GPS_STANLEY::init_dict()
 /* INITIALIZE DICTIONARY!!! */
 {
-    std::string assets_path = "/home/heven/erp_ws/src/heven_m_m/lane_ctrl/src/";
+    // std::string assets_path = "/home/heven/erp_ws/src/heven_m_m/lane_ctrl/src/";
 
     std::vector<std::string> csv_file_path = {
-        "/home/popular/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
+        // "/home/popular/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
+        "/home/pcy028x2/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
     };
 
     for (int i = 0; i < csv_file_path.size(); ++i) {
@@ -61,9 +62,9 @@ double GPS_STANLEY::gps_stanley()
     final_steer_angle = GPS_STANLEY::_constraint(curr_angle_error);
     
     // LATERAL ERROR
-    lateral_error = pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX].first), 2);
+    // lateral_error = pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX].first), 2);
+    lateral_error = pow((p_curr.second - METER_Y_CONST * p_targ.second), 2);
     lateral_error = sqrt(lateral_error);
-    lateral_error = lateral_error / cos(deg2rad(imu_yaw));
 
     double stanley_delta = rad2deg(deg2rad(final_steer_angle) + atan(LANE_K*lateral_error/((VEL/3.6))));
 
@@ -91,9 +92,9 @@ double GPS_STANLEY::find_angle_error(double car_angle, std::pair<double,double> 
     double targetdir_x = METER_Y_CONST * position_targ.second - position_curr.second;
     double targetdir_y = METER_X_CONST * position_targ.first - position_curr.first;
 
-    double target_angle = atan2(targetdir_y, targetdir_x) * 180/M_PI;
+    double target_angle = rad2deg(atan2(targetdir_y, targetdir_x));
 
-    target_angle = target_angle - 90.0;
+    target_angle = -90.0 + target_angle; // 음???
     ROS_INFO("Target angle : %.1f", target_angle);
 
     double angle_error = target_angle - car_angle;
@@ -138,6 +139,6 @@ void GPS_STANLEY::chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2)
     tf::Matrix3x3 m(q);
     double roll, pitch;
     m.getRPY(roll, pitch, imu_yaw);
-    imu_yaw = rad2deg(imu_yaw) - 90;
+    imu_yaw = -rad2deg(imu_yaw) + 90;
 
 }
