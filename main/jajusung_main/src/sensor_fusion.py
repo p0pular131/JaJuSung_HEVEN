@@ -71,13 +71,14 @@ class Fusion():
 
         self.image_sub = rospy.Subscriber("usb_cam/image_raw", Image, self.camera_callback)
         self.lidar_sub = rospy.Subscriber("/velodyne_points", PointCloud2, self.lidar_callback)
+        self.cone_sub = rospy.Subscriber("cone_result", Image, self.cone_callback)
         self.roi_pub = rospy.Publisher('/roi_pointcloud', PointCloud2, queue_size=10)
         self.blue_pub = rospy.Publisher('/cloud_blue',PointCloud2, queue_size=10)
         self.yellow_pub = rospy.Publisher('/cloud_yellow',PointCloud2, queue_size=10)
 
         self.yellow_cloud = PointCloud2()
         self.blue_cloud = PointCloud2()
-
+        self.cone_seg = np.zeros((480,640,3))
         # 각 라바콘 영역 내의 LiDAR 포인트 저장
         self.blue_cone_points = []
         self.yellow_cone_points = []
@@ -88,6 +89,9 @@ class Fusion():
 
         # 라바콘을 감지하고 그 좌표를 업데이트
         self.blue_cones, self.yellow_cones = self.process_frame(self.image)
+
+    def cone_callback(self, data):
+        self.cone_seg = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
 
     def process_frame(self, frame):
         # 이미지 데이터를 HSV 색상 공간으로 변환
@@ -151,49 +155,41 @@ class Fusion():
         roi_cloud = pcl_helper.pcl_to_ros(cloud)
         roi_cloud.header.frame_id = "velodyne"
         self.roi_pub.publish(roi_cloud)
-    
+
         # 각 라바콘 영역 내의 LiDAR 포인트 저장 리스트 초기화
         self.blue_cone_points.clear()
         self.yellow_cone_points.clear()
 
-        for point in pc2.read_points(roi_cloud, field_names=("x", "y", "z"), skip_nans=True):
-            x, y, z = point[:3]
+        points = np.array(list(pc2.read_points(roi_cloud, field_names=("x", "y", "z"), skip_nans=True)))
 
-            # 4x1 벡터 생성
-            world_point = np.array([[x], [y], [z], [1]]) 
+        world_points = np.hstack((points, np.ones((points.shape[0], 1))))
 
-            # 3x1 벡터로 변환
-            projected_point = intrinsic_matrix @ extrinsic_matrix @ world_point
+        projected_points = intrinsic_matrix @ extrinsic_matrix @ world_points.T
 
-            scaling = projected_point[2][0]
+        image_points = projected_points[:2] / projected_points[2]
 
-            if scaling == 0:
-                continue
+        image_points = image_points.T.astype(int)
 
-            image_point = projected_point / scaling
+        in_bounds = (image_points[:, 0] >= 0) & (image_points[:, 0] < 640) & (image_points[:, 1] >= 0) & (image_points[:, 1] < 480)
+        valid_points = image_points[in_bounds]
+        valid_world_points = points[in_bounds]
 
-            coord = (int(image_point[0][0]), int(image_point[1][0]))
+        for coord, point in zip(valid_points, valid_world_points):
+            x, y, z = point
+            if self.cone_seg[coord[1],coord[0],0] > 100:
+                self.blue_cone_points.append((x, y, z))
+                cv2.circle(self.image, tuple(coord), 2, (255, 0, 0), -1)  # 파란색으로 표시
+            elif self.cone_seg[coord[1],coord[0],1] > 100:
+                self.yellow_cone_points.append((x, y, z))
+                cv2.circle(self.image, tuple(coord), 2, (0, 0, 0), -1)  # 깜장색으로 표시
 
-            # 이미지 내의 좌표 체크
-            if 0 <= coord[0] < 640 and 0 <= coord[1] < 480:
-                # 파란색 라바콘 영역 내의 포인트
-                if self.is_point_in_cone(coord, self.blue_cones):
-                    self.blue_cone_points.append((x, y, z))
-                    cv2.circle(self.image, coord, 2, (255, 0, 0), -1)  # 파란색으로 표시
-                # 노란색 라바콘 영역 내의 포인트
-                elif self.is_point_in_cone(coord, self.yellow_cones):
-                    self.yellow_cone_points.append((x, y, z))
-                    cv2.circle(self.image, coord, 2, (0, 255, 255), -1)  # 노란색으로 표시
-
-        # 결과 출력
-        # print("Blue cone LiDAR points:", self.blue_cone_points)
-        # print("Yellow cone LiDAR points:", self.yellow_cone_points)
-                    
+        # Display the result
         cv2.imshow("Result", self.image)
         cv2.waitKey(1)
-                    
+
+        # Publish clouds
         self.publish_clouds()
-    
+
     def is_point_in_cone(self, coord, cone_coords, radius=20):
         """
         2D 이미지 좌표에서 특정 라바콘 영역 내의 포인트인지 체크
