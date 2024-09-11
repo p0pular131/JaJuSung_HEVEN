@@ -4,6 +4,8 @@ from cv_bridge import CvBridge
 import cv2
 from ultralytics import YOLO
 import numpy as np
+import message_filters
+import threading  # Import the threading module
 
 class YOLOv8Node:
     def __init__(self):
@@ -11,7 +13,7 @@ class YOLOv8Node:
         rospy.init_node('yolov8_ros_node', anonymous=True)
 
         # Load the YOLOv8 model
-        self.model = YOLO('/home/heven/Downloads/best.pt')  # Update with your model path
+        self.model = YOLO('./best.pt')  # Update with your model path
 
         # Initialize CvBridge
         self.bridge = CvBridge()
@@ -19,11 +21,16 @@ class YOLOv8Node:
         # Subscribe to the /usb_cam/image_raw topic
         self.left_image_sub = message_filters.Subscriber('/cameraLeft/usb_cam1/image_raw', Image)
         self.right_image_sub = message_filters.Subscriber('/cameraRight/usb_cam2/image_raw', Image)
-        
-        
+
         self.ts = message_filters.ApproximateTimeSynchronizer([self.left_image_sub, self.right_image_sub], 10, 0.1)
         self.ts.registerCallback(self.callback)
-        self.image_pub = rospy.Publisher('cone_result', Image, queue_size = 10)
+
+        self.combined_mask_pub = rospy.Publisher('cone_result', Image, queue_size=10)
+
+        # Initialize variables for display threading
+        self.combined_image = None
+        self.display_thread = threading.Thread(target=self.display_image, daemon=True)
+        self.display_thread.start()
 
     def callback(self, left_msg, right_msg):
         # Convert ROS Image message to OpenCV image
@@ -45,8 +52,8 @@ class YOLOv8Node:
                 mask_img = np.zeros_like(batch_images[i])
 
                 class_colors = [
-                    (255, 0, 0),
-                    (0, 255, 255)
+                    (255, 0, 0),  # Class 0: Blue
+                    (0, 255, 255)  # Class 1: Yellow
                 ]
 
                 for j in range(len(masks)):
@@ -60,19 +67,26 @@ class YOLOv8Node:
             else:
                 rospy.logwarn("No segmentation masks found in YOLOv8 results.")
 
-        # Concatenate mask images horizontally and convert to a ROS Image message, then publish
+        # Concatenate mask images horizontally
         if len(mask_images) == 2:
-            combined_image = np.concatenate(mask_images, axis=1)
-            mask_image_msg = self.bridge.cv2_to_imgmsg(combined_image, encoding='bgr8')
+            self.combined_image = np.concatenate(mask_images, axis=1)
+            mask_image_msg = self.bridge.cv2_to_imgmsg(self.combined_image, encoding='bgr8')
             self.combined_mask_pub.publish(mask_image_msg)
-            cv2.imshow('YOLOv8 Detection Combined', combined_image)
-            cv2.waitKey(1)
+    
+    def display_image(self):
+        # This method runs in a separate thread and continuously shows the image
+        while not rospy.is_shutdown():
+            if self.combined_image is not None:
+                # Display the image in a separate thread
+                cv2.imshow('YOLOv8 Detection Combined', self.combined_image)
+                cv2.waitKey(1)
         
-       
+        # Clean up OpenCV windows after shutdown
+        cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     try:
         yolo_node = YOLOv8Node()
         rospy.spin()
     except rospy.ROSInterruptException:
-        cv2.destroyAllWindows()
+        pass
