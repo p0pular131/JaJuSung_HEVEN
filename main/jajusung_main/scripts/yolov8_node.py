@@ -17,60 +17,58 @@ class YOLOv8Node:
         self.bridge = CvBridge()
 
         # Subscribe to the /usb_cam/image_raw topic
-        self.image_sub = rospy.Subscriber('/usb_cam/image_raw', Image, self.callback)
+        self.left_image_sub = message_filters.Subscriber('/cameraLeft/usb_cam1/image_raw', Image)
+        self.right_image_sub = message_filters.Subscriber('/cameraRight/usb_cam2/image_raw', Image)
+        
+        
+        self.ts = message_filters.ApproximateTimeSynchronizer([self.left_image_sub, self.right_image_sub], 10, 0.1)
+        self.ts.registerCallback(self.callback)
         self.image_pub = rospy.Publisher('cone_result', Image, queue_size = 10)
 
-    def callback(self, data):
+    def callback(self, left_msg, right_msg):
         # Convert ROS Image message to OpenCV image
-        cv_image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
-
+        left_image = self.bridge.imgmsg_to_cv2(left_msg, desired_encoding='bgr8')
+        right_image = self.bridge.imgmsg_to_cv2(right_msg, desired_encoding='bgr8')
+        
         # Perform inference
-        results = self.model(cv_image)    
-
-        # Check if results are not empty and handle the result
-        if results:
-            result = results[0]
-
-            # Check if segmentation masks are available
-            if hasattr(result, 'masks') and result.masks is not None:
-                # Extract the masks from the result
+        batch_images = [left_image, right_image]
+        results = self.model(batch_images)
+        
+        # Store mask images for both left and right
+        mask_images = []
+        
+        # Process each result
+        for i, result in enumerate(results):
+            if result and hasattr(result, 'masks') and result.masks is not None:
                 masks = result.masks.data
                 class_ids = list(result.boxes.cls.cpu().numpy())
-                mask_img = np.zeros_like(cv_image)
+                mask_img = np.zeros_like(batch_images[i])
 
                 class_colors = [
-                    (255,0,0),
-                    (0,255,255)
+                    (255, 0, 0),
+                    (0, 255, 255)
                 ]
 
-                # Iterate through all masks and color them according to their class
-                for i in range(len(masks)):
-                    binary_mask = masks[i].cpu().numpy().astype(np.uint8) * 255  # Convert mask to uint8 type
-                    color = class_colors[int(class_ids[i])]  # Get the color for the current class
+                for j in range(len(masks)):
+                    binary_mask = masks[j].cpu().numpy().astype(np.uint8) * 255
+                    color = class_colors[int(class_ids[j])]
+                    colored_mask = np.zeros_like(batch_images[i])
+                    colored_mask[binary_mask > 0] = color
+                    mask_img = cv2.addWeighted(mask_img, 1.0, colored_mask, 0.5, 0)
 
-                    # Create a color mask using the binary mask and the class color
-                    colored_mask = np.zeros_like(cv_image)
-                    colored_mask[binary_mask > 0] = color  # Apply color where the mask is present
-
-                    # Overlay the colored mask on the main mask image
-                    mask_img = cv2.addWeighted(mask_img, 1.0, colored_mask, 0.5, 0)  # Blend with some transparency
-
-
-                # Convert the mask image to a ROS Image message and publish it
-                mask_image_msg = self.bridge.cv2_to_imgmsg(mask_img, encoding='bgr8')
-                self.image_pub.publish(mask_image_msg)
-
+                mask_images.append(mask_img)
             else:
                 rospy.logwarn("No segmentation masks found in YOLOv8 results.")
-        
-            # Render boxes on the image
-            annotated_frame = result.plot()  # Use `plot` method instead of `render`
 
-            # Display the result using OpenCV
-            cv2.imshow('YOLOv8 Detection', annotated_frame)
+        # Concatenate mask images horizontally and convert to a ROS Image message, then publish
+        if len(mask_images) == 2:
+            combined_image = np.concatenate(mask_images, axis=1)
+            mask_image_msg = self.bridge.cv2_to_imgmsg(combined_image, encoding='bgr8')
+            self.combined_mask_pub.publish(mask_image_msg)
+            cv2.imshow('YOLOv8 Detection Combined', combined_image)
             cv2.waitKey(1)
-        else:
-            rospy.logwarn("No results returned from YOLOv8.")
+        
+       
 
 if __name__ == '__main__':
     try:
