@@ -29,7 +29,6 @@ def split_centroids_by_color(centroids):
 
 def ros_to_pcl(ros_cloud):
     """Converts a ROS PointCloud2 message to a PCL PointCloud"""
-    rospy.loginfo("Converting ROS PointCloud2 to PCL")
     points_list = []
     for data in pc2.read_points(ros_cloud, skip_nans=True, field_names=("x", "y", "z")):
         points_list.append(
@@ -38,13 +37,11 @@ def ros_to_pcl(ros_cloud):
 
     pcl_data = pcl.PointCloud_PointXYZRGB()
     pcl_data.from_list(points_list)
-    rospy.loginfo("ROS to PCL conversion complete")
     return pcl_data
 
 
 def pcl_to_ros(pcl_array, color=None):
     """Converts a PCL PointCloud into a ROS PointCloud2 message. Uses a default color if none is provided."""
-    rospy.loginfo("Converting PCL to ROS PointCloud2")
     header = Header()
     header.stamp = rospy.Time.now()
     header.frame_id = "base_link"
@@ -73,7 +70,6 @@ def pcl_to_ros(pcl_array, color=None):
         buffer.append(struct.pack("fffI", point[0], point[1], point[2], rgb_int))
 
     ros_msg.data = b"".join(buffer)
-    rospy.loginfo("PCL to ROS conversion complete")
     return ros_msg
 
 
@@ -83,7 +79,7 @@ def draw_polyfit_lane(frame, clustered_dots, dim=1):
     coeffecients = np.polyfit(x_coords, y_coords, dim)
     polynomial = np.poly1d(coeffecients)
 
-    x_dense = np.linspace(min(x_coords), max(x_coords), 100).astype(int)
+    x_dense = np.linspace(min(x_coords), max(x_coords), 10).astype(int)
     y_dense = polynomial(x_dense).astype(int)
 
     previous_point = None
@@ -103,29 +99,29 @@ def clustering(bev_points_list):
     bev_cloud_xy0 = pcl.PointCloud()
     bev_cloud_xy0.from_list(bev_points_list)
 
-    rospy.loginfo("Applying Voxel Grid Downsampling")
+    # rospy.loginfo("Applying Voxel Grid Downsampling")
     vg = bev_cloud_xy0.make_voxel_grid_filter()
     vg.set_leaf_size(0.01, 0.01, 0.01)  # Adjust leaf size to prevent overflow
     bev_cloud_xy0 = vg.filter()
-    rospy.loginfo("Voxel Grid Downsampling complete")
+    # rospy.loginfo("Voxel Grid Downsampling complete")
 
     # Extract clusters from the outliers
     tree = bev_cloud_xy0.make_kdtree()
-    rospy.loginfo("Extracting clusters")
+    # rospy.loginfo("Extracting clusters")
     ec = bev_cloud_xy0.make_EuclideanClusterExtraction()
     ec.set_ClusterTolerance(0.8)
     ec.set_MinClusterSize(2)
     ec.set_MaxClusterSize(70)
     ec.set_SearchMethod(tree)
     cluster_indices = ec.Extract()
-    rospy.loginfo("Cluster extraction complete")
-    rospy.loginfo("Number of clusters found: {}".format(len(cluster_indices)))
+    # rospy.loginfo("Cluster extraction complete")
+    # rospy.loginfo("Number of clusters found: {}".format(len(cluster_indices)))
     return bev_cloud_xy0, cluster_indices
 
 
-def make_cv2(clouds, image_size=(800, 600)):
-    WIDTH, HEIGHT = image_size
-    frame = np.zeros((600, 800, 3), dtype="uint8") + 255
+def make_cv2(clouds, bev_frame_size):
+    HEIGHT, WIDTH = bev_frame_size
+    frame = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8") + 255
     centroids_image_coord = []
 
     for cloud in clouds:
@@ -140,9 +136,9 @@ def make_cv2(clouds, image_size=(800, 600)):
             # print(statistics.median(x_coords), (statistics.median(y_coords)
             center_x, center_y = WIDTH // 2, HEIGHT // 2
 
-            rospy.loginfo(
-                f"x_coords:{statistics.median(x_coords)}, y_coords:{statistics.median(y_coords)}"
-            )
+            # rospy.loginfo(
+            #     f"x_coords:{statistics.median(x_coords)}, y_coords:{statistics.median(y_coords)}"
+            # )
             centroid_y = center_y + (-statistics.median(x_coords) * 60) + 550
             centroid_x = center_x + (-statistics.median(y_coords) * 50)
             centroid_image_coord = (int(centroid_x), int(centroid_y))
@@ -150,22 +146,5 @@ def make_cv2(clouds, image_size=(800, 600)):
             centroids_image_coord.append((centroid_image_coord, color))
 
     left_lane_centroids, right_lane_centroids = split_centroids_by_color(centroids_image_coord)
-    if left_lane_centroids.shape[0] > 1:
-        draw_polyfit_lane(frame, left_lane_centroids)
+    return frame, left_lane_centroids, right_lane_centroids
 
-    if right_lane_centroids.shape[0] > 1:
-        draw_polyfit_lane(frame, right_lane_centroids)
-
-    for i in range(0, WIDTH, 40):
-        cv2.line(frame, (i, 0), (i, HEIGHT), (0, 0, 0), 1)
-    for j in range(0, HEIGHT, 40):
-        cv2.line(frame, (0, j), (WIDTH, j), (0, 0, 0), 1)
-    cv2.imshow("Frame with Multiple Red Dots", frame)
-    # out.write(frame)
-    # if cv2.waitKey(1) & 0xFF == ord('q'):
-    #     break
-
-    cv2.waitKey(10)
-    # out.release()
-
-    return left_lane_centroids, right_lane_centroids
