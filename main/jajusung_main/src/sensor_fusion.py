@@ -4,6 +4,8 @@ import rospy
 import cv2
 import numpy as np
 import pcl  # Python PCL 라이브러리
+import time
+import torch
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointField
 import std_msgs.msg
@@ -78,10 +80,11 @@ class Fusion():
 
         self.yellow_cloud = PointCloud2()
         self.blue_cloud = PointCloud2()
-        self.cone_seg = np.zeros((480,640,3))
+        self.cone_seg = torch.zeros((480, 640, 3))  # [H, W, C]
         # 각 라바콘 영역 내의 LiDAR 포인트 저장
-        self.blue_cone_points = []
-        self.yellow_cone_points = []
+        self.blue_cone_points = None
+        self.yellow_cone_points = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     def camera_callback(self, data):
         # 카메라 데이터를 받아와서 이미지를 저장
@@ -91,7 +94,8 @@ class Fusion():
         self.blue_cones, self.yellow_cones = self.process_frame(self.image)
 
     def cone_callback(self, data):
-        self.cone_seg = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+        cone_seg = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+        self.cone_seg = torch.from_numpy(cone_seg).to(self.device)
 
     def process_frame(self, frame):
         # 이미지 데이터를 HSV 색상 공간으로 변환
@@ -134,6 +138,9 @@ class Fusion():
         return blue_coords, yellow_coords
 
     def lidar_callback(self, data):
+        global intrinsic_matrix
+        global extrinsic_matrix
+
         # PointCloud2 메시지를 PCL 포맷으로 변환
         pcl_cloud = pcl_helper.ros_to_pcl(data)
         
@@ -156,32 +163,48 @@ class Fusion():
         roi_cloud.header.frame_id = "velodyne"
         self.roi_pub.publish(roi_cloud)
 
-        # 각 라바콘 영역 내의 LiDAR 포인트 저장 리스트 초기화
-        self.blue_cone_points.clear()
-        self.yellow_cone_points.clear()
-
         points = np.array(list(pc2.read_points(roi_cloud, field_names=("x", "y", "z"), skip_nans=True)))
+        points = torch.from_numpy(points).to(self.device)
 
-        world_points = np.hstack((points, np.ones((points.shape[0], 1))))
+        ones_tensor = torch.ones((points.shape[0], 1), device=self.device)
+        world_points = torch.cat((points, ones_tensor), dim=1)
 
-        projected_points = intrinsic_matrix @ extrinsic_matrix @ world_points.T
+        intrinsic_matrix = torch.tensor(intrinsic_matrix, device=self.device)
+        extrinsic_matrix = torch.tensor(extrinsic_matrix, device=self.device)
 
-        image_points = projected_points[:2] / projected_points[2]
+        with torch.no_grad():
+            projected_points = intrinsic_matrix @ extrinsic_matrix @ world_points.T
+            image_points = projected_points[:2] / projected_points[2]
+            image_points = image_points.T.to(torch.int)
 
-        image_points = image_points.T.astype(int)
+            x_coords = image_points[:, 0]
+            y_coords = image_points[:, 1]
+            x_min, x_max, y_min, y_max = 0, 640, 0, 480
 
-        in_bounds = (image_points[:, 0] >= 0) & (image_points[:, 0] < 640) & (image_points[:, 1] >= 0) & (image_points[:, 1] < 480)
-        valid_points = image_points[in_bounds]
-        valid_world_points = points[in_bounds]
+            in_bounds = (x_coords >= x_min) & (x_coords < x_max) & (y_coords >= y_min) & (y_coords < y_max)
+            valid_points = image_points[in_bounds]
+            valid_world_points = points[in_bounds]
 
-        for coord, point in zip(valid_points, valid_world_points):
-            x, y, z = point
-            if self.cone_seg[coord[1],coord[0],0] > 100:
-                self.blue_cone_points.append((x, y, z))
-                cv2.circle(self.image, tuple(coord), 2, (255, 0, 0), -1)  # 파란색으로 표시
-            elif self.cone_seg[coord[1],coord[0],1] > 100:
-                self.yellow_cone_points.append((x, y, z))
-                cv2.circle(self.image, tuple(coord), 2, (0, 0, 0), -1)  # 깜장색으로 표시
+            valid_x_coords = valid_points[:, 0]
+            valid_y_coords = valid_points[:, 1]
+        
+            blue_channel = self.cone_seg[valid_y_coords, valid_x_coords, 0]
+            yellow_channel = self.cone_seg[valid_y_coords, valid_x_coords, 1]
+
+            blue_mask = blue_channel > 100
+            yellow_mask = yellow_channel > 100
+
+            self.blue_cone_points = valid_world_points[blue_mask].cpu().numpy()
+            self.yellow_cone_points = valid_world_points[yellow_mask].cpu().numpy()
+
+        valid_points_numpy = valid_points.cpu().numpy()
+        blue_coords = valid_points_numpy[blue_mask.cpu().numpy()]
+        yellow_coords = valid_points_numpy[yellow_mask.cpu().numpy()]
+
+        for coord in blue_coords:
+            cv2.circle(self.image, tuple(coord), 2, (255, 0, 0), -1)  # Blue
+        for coord in yellow_coords:
+            cv2.circle(self.image, tuple(coord), 2, (0, 0, 0), -1)  # Black
 
         # Display the result
         cv2.imshow("Result", self.image)
@@ -210,11 +233,11 @@ class Fusion():
             PointField('z', 8, PointField.FLOAT32, 1)
         ]
 
-        if self.blue_cone_points:
+        if self.blue_cone_points.size > 0:
             self.blue_cloud = pc2.create_cloud(header, fields, self.blue_cone_points)
             self.blue_pub.publish(self.blue_cloud)
 
-        if self.yellow_cone_points:
+        if self.yellow_cone_points.size > 0:
             self.yellow_cloud = pc2.create_cloud(header, fields, self.yellow_cone_points)
             self.yellow_pub.publish(self.yellow_cloud)
 
