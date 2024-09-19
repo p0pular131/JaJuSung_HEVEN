@@ -14,35 +14,10 @@ from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
 from math import radians, cos, sin
 
-# 각 x, y, z축 기준 회전각도 (카메라를 LiDAR와 맞추기 위한 회전각)
-ALPHA = 5
-BETA = 2
-GAMMA = 0
-
 # 카메라의 내부 파라미터 행렬
 intrinsic_matrix = np.array([[611.768234, 0.000000, 306.164069],
                              [0.000000, 613.154786, 233.896019],
                              [0.000000, 0.000000, 1.000000]])
-
-# 회전 행렬 정의
-R_x = np.array([[1, 0, 0], 
-                [0, cos(radians(ALPHA)), -sin(radians(ALPHA))], 
-                [0, sin(radians(ALPHA)), cos(radians(ALPHA))]])
-
-R_y = np.array([[cos(radians(BETA)), 0, sin(radians(BETA))],
-                [0, 1, 0],
-                [-sin(radians(BETA)), 0, cos(radians(BETA))]])
-
-R_z = np.array([[cos(radians(GAMMA)), -sin(radians(GAMMA)), 0],
-                [sin(radians(GAMMA)), cos(radians(GAMMA)), 0],
-                [0, 0, 1]])
-
-R_axis = np.array([[0, -1, 0],
-                   [0, 0, -1],
-                   [1, 0, 0]])
-
-# 최종 회전 행렬
-R = R_z @ R_y @ R_x @ R_axis
 
 # 외부 파라미터 행렬 정의
 extrinsic_matrix = np.array(
@@ -96,46 +71,6 @@ class Fusion():
     def cone_callback(self, data):
         cone_seg = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
         self.cone_seg = torch.from_numpy(cone_seg).to(self.device)
-
-    def process_frame(self, frame):
-        # 이미지 데이터를 HSV 색상 공간으로 변환
-        hsv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-        # 색상 범위 정의
-        # lower_blue = np.array([90, 100, 40])    # 파란색 범위
-        lower_blue = np.array([90, 190, 100])    # 파란색 범위
-        upper_blue = np.array([150, 255, 255])
-
-        lower_yellow = np.array([5, 70, 120])  # 노란색 범위
-        # lower_yellow = np.array([5, 130, 160])  # 노란색 범위
-        upper_yellow = np.array([30, 255, 255])
-
-        
-        # HSV 이미지에서 파란색과 노란색만 추출
-        mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
-        mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
-        
-        # 각 색상의 마스크에서 컨투어 찾기
-        contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contours_yellow, _ = cv2.findContours(mask_yellow, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        blue_coords = []
-        for contour in contours_blue:
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-                cx = int(M['m10'] / M['m00'])
-                cy = int(M['m01'] / M['m00'])
-                blue_coords.append((cx, cy))
-        
-        yellow_coords = []
-        for contour in contours_yellow:
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-                cx = int(M['m10'] / M['m00'])
-                cy = int(M['m01'] / M['m00'])
-                yellow_coords.append((cx, cy))
-
-        return blue_coords, yellow_coords
 
     def lidar_callback(self, data):
         global intrinsic_matrix
@@ -212,15 +147,6 @@ class Fusion():
 
         # Publish clouds
         self.publish_clouds()
-
-    def is_point_in_cone(self, coord, cone_coords, radius=20):
-        """
-        2D 이미지 좌표에서 특정 라바콘 영역 내의 포인트인지 체크
-        """
-        for (cx, cy) in cone_coords:
-            if (coord[0] - cx) ** 2 + (coord[1] - cy) ** 2 <= radius ** 2:
-                return True
-        return False
     
     def publish_clouds(self) :
         header = std_msgs.msg.Header()
