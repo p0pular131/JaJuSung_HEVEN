@@ -31,7 +31,7 @@ public:
     
     void init_dict();
 
-    double find_angle_error(double car_angle, std::pair<double,double> position_curr, std::pair<double,double> position_targ);
+    double find_angle_error(double car_angle, double ref_angle);
 
     double _constraint(double steer_angle);
 
@@ -62,8 +62,9 @@ private:
     int GPS_TRACKING_SPEED = 7;
     int TRACK_IDX = 0;
 
-    double DISTANCE_SQUARE = 2;
+    double DISTANCE_SQUARE = 1;
     std::vector<std::pair<double, double>> TRACK_DICT;
+    std::vector<double> ref_yaw;
     int TRACK_NO = 1; // initialized as 1, used to find TRACK_DICT key 
     
     bool GPS_TRACK_END = false;
