@@ -12,9 +12,9 @@ void GPS_STANLEY::init_dict()
     // std::string assets_path = "/home/heven/erp_ws/src/heven_m_m/lane_ctrl/src/";
 
     std::vector<std::string> csv_file_path = {
-        // "/home/popular/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
+        "/home/heven/erp_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
         // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_pcy.csv"
-        "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
+        // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
     };
 
     for (int i = 0; i < csv_file_path.size(); ++i) {
@@ -111,10 +111,11 @@ double GPS_STANLEY::find_angle_error(double car_angle, double ref_angle)
     // double targetdir_y = METER_X_CONST * position_targ.first - position_curr.first;
 
     double target_angle = rad2deg(ref_angle);
-    ROS_INFO("Car angle : %.1f", car_angle);
+    // ROS_INFO("Car angle : %.1f", car_angle);
 
     // target_angle = - target_angle - 90;
-    target_angle = fmod((- target_angle - 90.0), 90.0); // 다시보기
+    // target_angle = fmod((- target_angle - 90.0), 90.0); // 다시보기
+    target_angle = fmod((- target_angle + 90.0), 360.0);
     ROS_INFO("Target angle : %.1f", target_angle);
 
     double angle_error = car_angle - target_angle;
@@ -159,5 +160,6 @@ void GPS_STANLEY::chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2)
     tf::Matrix3x3 m(q);
     double roll, pitch;
     m.getRPY(roll, pitch, imu_yaw);
-    imu_yaw = fmod((- rad2deg(imu_yaw) - 90), 90);
+    // imu_yaw = fmod((- rad2deg(imu_yaw) - 90.0), 90.0);
+    imu_yaw = fmod((- rad2deg(imu_yaw) + 90.0), 360.0);
 }
