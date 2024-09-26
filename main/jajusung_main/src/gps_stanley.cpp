@@ -12,9 +12,9 @@ void GPS_STANLEY::init_dict()
     // std::string assets_path = "/home/heven/erp_ws/src/heven_m_m/lane_ctrl/src/";
 
     std::vector<std::string> csv_file_path = {
-        "/home/heven/erp_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
+        // "/home/heven/erp_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
         // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_pcy.csv"
-        // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
+        "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_0925.csv"
     };
 
     for (int i = 0; i < csv_file_path.size(); ++i) {
