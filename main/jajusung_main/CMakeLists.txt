@@ -52,12 +52,6 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
-add_executable(lane_follower src/lane_follower.cpp src/EKF_lane.cpp)
-add_dependencies(lane_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(lane_follower 
-  ${catkin_LIBRARIES}
-)
-
 add_executable(gps_follower src/gps_stanley_main.cpp src/gps_stanley.cpp)
 add_dependencies(gps_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(gps_follower 
@@ -71,8 +65,3 @@ target_link_libraries(fusion_node
   ${PCL_LIBRARIES}
 )
 set_property(TARGET fusion_node PROPERTY CXX_STANDARD 14)
-
-find_package(OpenMP) #omp 설정 안쓰면 주석달기
-if (OPENMP_FOUND)
-  target_link_libraries(fusion_node OpenMP::OpenMP_CXX)
-endif()
