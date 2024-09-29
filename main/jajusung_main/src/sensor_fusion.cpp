@@ -9,9 +9,12 @@
 #include <opencv2/opencv.hpp>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <std_msgs/Header.h>
-
+#include <math.h>
 class Fusion {
 public:
+    double first_image_time = 0.0, first_scan_time = 0.0;
+    double current_image_time = 0.0, current_scan_time = 0.0;
+    double time_offset = 0.0;
     Fusion() {
         // ROS 노드 초기화
         ros::NodeHandle nh;
@@ -26,17 +29,21 @@ public:
         blue_cone_points_.clear();
         yellow_cone_points_.clear();
 
-        intrinsic_matrix_ = (cv::Mat_<double>(3, 3) << 611.768234, 0.000000, 306.164069,
-                                                      0.000000, 613.154786, 233.896019,
+        intrinsic_matrix_left = (cv::Mat_<double>(3, 3) << 675.759248, 0.000000, 319.4499363,
+                                                      0.000000, 679.678618, 231.999081,
                                                       0.000000, 0.000000, 1.000000);
 
-        extrinsic_matrix_left = (cv::Mat_<double>(3, 4) << 0.06060704, -0.99802871, 0.01629351, -0.04498142,
-                                                       0.05040392, -0.01324265, -0.99864112, 0.05205786,
-                                                       0.99688827, 0.06134594, 0.04950196, 0.51905197);
+        intrinsic_matrix_right = (cv::Mat_<double>(3, 3) << 658.640475, 0.000000, 347.282338,
+                                                      0.000000, 661.438151, 243.753564,
+                                                      0.000000, 0.000000, 1.000000);
 
-        extrinsic_matrix_right = (cv::Mat_<double>(3, 4) << 0.06060704, -0.99802871, 0.01629351, -0.04498142,
-                                                0.05040392, -0.01324265, -0.99864112, 0.05205786,
-                                                0.99688827, 0.06134594, 0.04950196, 0.51905197);
+        extrinsic_matrix_left = (cv::Mat_<double>(3, 4) << 0.32409061, -0.94543155, -0.03353304, -0.02130857,
+                                                        0.10725113,  0.0719368,  -0.99162608, -0.26748812,
+                                                        0.93992685,  0.31778024,  0.12471264,  0.54786644);
+
+        extrinsic_matrix_right = (cv::Mat_<double>(3, 4) << -0.38588106, -0.92234947, -0.01916385, -0.11465837,
+                                                0.07988828, -0.01271354, -0.99672274,  0.03751879,
+                                                0.91908306, -0.3861474,  0.07859082,  0.21283645);
 
     }
 
@@ -62,6 +69,11 @@ public:
 
     void coneCallback(const sensor_msgs::ImageConstPtr& msg) {
         try {
+            if(first_image_time == 0.0) {
+                first_image_time = ros::Time::now().toSec();
+            }
+            current_image_time = ros::Time::now().toSec();
+
             cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
             cone_seg_ = cv_ptr->image;
 
@@ -82,8 +94,21 @@ public:
     }
 
     void lidarCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
-        if(cone_seg_.rows == 0) {
+        if(cone_seg_.empty() || left_image_.empty()) {
             ROS_INFO("No Image. Pass this scan.");
+            return;
+        }
+        if(first_scan_time == 0.0) {
+            first_scan_time = msg->header.stamp.toSec();
+        }
+        time_offset = first_image_time - first_scan_time;
+
+        current_scan_time = msg->header.stamp.toSec();
+
+        double diff_time = fabs(current_image_time - current_scan_time - time_offset);
+
+        if( diff_time > 0.2) {
+            ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
             return;
         }
         pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -92,7 +117,7 @@ public:
         // Voxel Grid Filter를 사용한 다운샘플링
         pcl::VoxelGrid<pcl::PointXYZ> vox;
         vox.setInputCloud(pcl_cloud);
-        vox.setLeafSize(0.5f, 0.5f, 0.5f);
+        vox.setLeafSize(0.1f, 0.1f, 0.1f);
         pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         vox.filter(*filtered_cloud);
 
@@ -100,7 +125,7 @@ public:
         pcl::PassThrough<pcl::PointXYZ> pass;
         pass.setInputCloud(filtered_cloud);
         pass.setFilterFieldName("x");
-        pass.setFilterLimits(0.0, 4.0);
+        pass.setFilterLimits(0.0, 10.0);
         pass.filter(*filtered_cloud);
         pass.setFilterFieldName("y");
         pass.setFilterLimits(-3.0, 3.0);
@@ -126,7 +151,7 @@ public:
             cv::Mat right_camera_point = extrinsic_matrix_right * world_point;
 
             // 이미지 평면으로 투영
-            cv::Mat left_projected_point = intrinsic_matrix_ * left_camera_point.rowRange(0, 3);
+            cv::Mat left_projected_point = intrinsic_matrix_left * left_camera_point.rowRange(0, 3);
             cv::Point2i left_img_point;
             left_img_point.x = static_cast<int>(left_projected_point.at<double>(0) / left_projected_point.at<double>(2));
             left_img_point.y = static_cast<int>(left_projected_point.at<double>(1) / left_projected_point.at<double>(2));
@@ -137,7 +162,7 @@ public:
                 left_valid_world_points.push_back(point);
             }
             // 이미지 평면으로 투영
-            cv::Mat right_projected_point = intrinsic_matrix_ * right_camera_point.rowRange(0, 3);
+            cv::Mat right_projected_point = intrinsic_matrix_right * right_camera_point.rowRange(0, 3);
             cv::Point2i right_img_point;
             right_img_point.x = static_cast<int>(right_projected_point.at<double>(0) / right_projected_point.at<double>(2));
             right_img_point.y = static_cast<int>(right_projected_point.at<double>(1) / right_projected_point.at<double>(2));
@@ -158,9 +183,11 @@ public:
             const cv::Point2i& pt = left_image_points[i];
             if (pt.x >= 0 && pt.x < cone_seg_left.cols && pt.y >= 0 && pt.y < cone_seg_left.rows) {
                 cv::Vec3b color = cone_seg_left.at<cv::Vec3b>(pt); 
+                if (pt.x < left_image_.cols && pt.y < left_image_.rows && !left_image_.empty())
+                cv::circle(left_image_, pt, 2, cv::Scalar(255, 0, 0), -1);
                 if (color[0] > 100) {  
                     blue_cone_points_.push_back(left_valid_world_points[i]);
-                    // cv::circle(cone_seg_left, pt, 2, cv::Scalar(255, 0, 0), -1);
+                    cv::circle(cone_seg_left, pt, 2, cv::Scalar(255, 0, 0), -1);
                 }
             } else {
                 ROS_WARN("Invalid point access in cone_seg_left: (%d, %d)", pt.x, pt.y);
@@ -172,9 +199,11 @@ public:
             const cv::Point2i& pt = right_image_points[i];
             if (pt.x >= 0 && pt.x < cone_seg_right.cols && pt.y >= 0 && pt.y < cone_seg_right.rows) {
                 cv::Vec3b color = cone_seg_right.at<cv::Vec3b>(pt); 
+                if (pt.x < right_image_.cols && pt.y < right_image_.rows && !right_image_.empty())
+                cv::circle(right_image_, pt, 2, cv::Scalar(255, 0, 0), -1);
                 if (color[1] > 100) {  
                     yellow_cone_points_.push_back(right_valid_world_points[i]);
-                    // cv::circle(cone_seg_right, pt, 2, cv::Scalar(0, 255, 255), -1);
+                    cv::circle(cone_seg_right, pt, 2, cv::Scalar(0, 255, 255), -1);
                 }
             } else {
                 ROS_WARN("Invalid point access in cone_seg_right: (%d, %d)", pt.x, pt.y);
@@ -184,6 +213,8 @@ public:
 
         cv::imshow("Result Left", cone_seg_left);
         cv::imshow("Result Right", cone_seg_right);
+        cv::imshow("Calib Result Left", left_image_);
+        cv::imshow("Calib Result Right", right_image_);
         cv::waitKey(1);
 
         publishClouds();
@@ -221,7 +252,7 @@ private:
     ros::Publisher roi_pub_, blue_pub_, yellow_pub_;
 
     cv::Mat left_image_, right_image_, cone_seg_, cone_seg_left, cone_seg_right;
-    cv::Mat intrinsic_matrix_, extrinsic_matrix_left, extrinsic_matrix_right;
+    cv::Mat intrinsic_matrix_left, intrinsic_matrix_right, extrinsic_matrix_left, extrinsic_matrix_right;
     std::vector<pcl::PointXYZ> blue_cone_points_, yellow_cone_points_;
 };
 
