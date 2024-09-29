@@ -94,7 +94,7 @@ public:
     }
 
     void lidarCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
-        if(cone_seg_.empty() || left_image_.empty()) {
+        if(cone_seg_.empty() || left_image_.empty() || right_image_.empty()) {
             ROS_INFO("No Image. Pass this scan.");
             return;
         }
@@ -129,6 +129,9 @@ public:
         pass.filter(*filtered_cloud);
         pass.setFilterFieldName("y");
         pass.setFilterLimits(-3.0, 3.0);
+        pass.filter(*filtered_cloud);
+        pass.setFilterFieldName("z");
+        pass.setFilterLimits(-0.8, 1.0);
         pass.filter(*filtered_cloud);
 
         sensor_msgs::PointCloud2 output;
@@ -212,9 +215,17 @@ public:
         }
 
         cv::imshow("Result Left", cone_seg_left);
+        cv::moveWindow("Result Left", 0, 0);  
+
         cv::imshow("Result Right", cone_seg_right);
+        cv::moveWindow("Result Right", 650, 0);  
+
         cv::imshow("Calib Result Left", left_image_);
+        cv::moveWindow("Calib Result Left", 0, 550);  
+
         cv::imshow("Calib Result Right", right_image_);
+        cv::moveWindow("Calib Result Right", 650, 550);  
+
         cv::waitKey(1);
 
         publishClouds();
