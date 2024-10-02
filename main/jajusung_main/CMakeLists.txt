@@ -29,6 +29,7 @@ add_message_files(
   FILES
   # ERP42CtrlCmd.msg
   lane_info.msg
+  delta.msg
 )
 
 generate_messages(
@@ -58,10 +59,17 @@ target_link_libraries(gps_follower
   ${catkin_LIBRARIES}
 )
 
+add_executable(lane_stanley src/lane_stanley.cpp)
+add_dependencies(lane_stanley ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(lane_stanley 
+  ${catkin_LIBRARIES}
+)
+
 add_executable(fusion_node src/sensor_fusion.cpp)
 target_link_libraries(fusion_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
 )
+
 set_property(TARGET fusion_node PROPERTY CXX_STANDARD 14)

@@ -2,10 +2,23 @@
 
 #include "ros/ros.h"
 #include "stanley_controller/lane_info.h"
-#include "stanley_controller/delta.h"
+#include "erp42_msgs/DriveCmd.h"
+#include "erp42_msgs/ModeCmd.h"
 #include <math.h>
 #define STANLEY_K 0.25
 #define VELOCITY 20
+#define VEL 20
+
+double delta = 0;
+ros::Publisher cmd_pub;
+ros::Publisher mod_pub;
+
+int normalize_delta(int delta)
+{
+  delta = delta>=28 ? 28 : delta;
+  delta = delta<=-28 ? -28 : delta;
+  return delta;
+}
 
 // 받아오는 data: left_x, right_x, left_theta, right_theta
 
@@ -46,6 +59,17 @@ void chatterCallback(const stanley_controller::lane_info::ConstPtr& msg)
   // ROS_INFO("lateral error: %.4f", lat_err);
   // ROS_INFO("heading error: %.4f", head_err);
   ROS_INFO("delta: %.4f", delta);
+
+  erp42_msgs::DriveCmd drive_cmd;
+  erp42_msgs::ModeCmd mode_cmd;
+
+  drive_cmd.KPH = VEL;
+  drive_cmd.Deg = normalize_delta(delta);
+  mode_cmd.MorA = 0x01;
+  mode_cmd.EStop = 0x00;
+  mode_cmd.Gear = 0x00;
+  cmd_pub.publish(drive_cmd);
+  mod_pub.publish(mode_cmd);
 }
 
 int main(int argc, char **argv)
@@ -58,8 +82,8 @@ int main(int argc, char **argv)
   ros::Subscriber sub = nh.subscribe("/lane_result", 100, chatterCallback);
 
   // Publisher
-  
-
+  cmd_pub = nh.advertise<erp42_msgs::DriveCmd>("drive", 100);
+  mod_pub = nh.advertise<erp42_msgs::ModeCmd>("mode", 100);
   ros::spin();		// 큐에 요청된 콜백함수를 처리하며, 프로그램 종료시까지 반복함
 
   return 0;
