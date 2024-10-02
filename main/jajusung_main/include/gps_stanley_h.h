@@ -79,4 +79,6 @@ private:
 
     double enu_imu_yaw = 0;
     double imu_yaw = 0;
+    double imu_yaw_rate = 0;
+    double imu_yaw_modified = 0;
 };

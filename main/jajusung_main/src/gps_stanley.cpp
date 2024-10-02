@@ -4,6 +4,7 @@
 #include <erp42_msgs/DriveCmd.h>
 #include <erp42_msgs/ModeCmd.h>
 #include <tf/transform_datatypes.h>
+#include <sensor_msgs/Imu.h>
 #include <cmath>
 
 void GPS_STANLEY::init_dict()
@@ -40,6 +41,7 @@ void GPS_STANLEY::init_dict()
                 double second = std::stod(row[1]);
                 double third = std::stod(row[2]);
                 ref_yaw.push_back(third);
+                // ref_yaw 는 imu 센서를 이용해서 구하고 있음
                 TRACK_DICT.emplace_back(first, second);
             }
         }
@@ -55,7 +57,8 @@ double GPS_STANLEY::gps_stanley()
     std::pair<double,double> p_curr = {latitude * METER_X_CONST, longitude * METER_Y_CONST};
 
     double distance = pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX].first), 2) + pow((p_curr.second - METER_Y_CONST * TRACK_DICT[TRACK_IDX].second), 2);
-    car_angle = imu_yaw;
+    car_angle = imu_yaw_modified;
+    // car_angle도 imu 센서를 이용함
     if (distance < DISTANCE_SQUARE) {
         TRACK_IDX += 1;
     }
@@ -96,7 +99,7 @@ double GPS_STANLEY::gps_stanley()
     // std::cout<<"================heading_error not saturated : "<<curr_angle_error<<'\n';
     std::cout<<"================result_drive : "<<stanley_delta<<'\n';
     std::cout<<"================target_idx : "<<TRACK_IDX<<'\n';
-    std::cout << imu_yaw << std::endl;
+    // std::cout << imu_yaw_rate << std::endl;
     drive_pub.publish(drive_cmd);
     mode_pub.publish(mode_cmd);
 
@@ -111,21 +114,28 @@ double GPS_STANLEY::find_angle_error(double car_angle, double ref_angle)
     // double targetdir_y = METER_X_CONST * position_targ.first - position_curr.first;
 
     double target_angle = rad2deg(ref_angle);
-    // ROS_INFO("Car angle : %.1f", car_angle);
+    target_angle = - target_angle + 90.0;
 
-    // target_angle = - target_angle - 90;
-    // target_angle = fmod((- target_angle - 90.0), 90.0); // 다시보기
-    target_angle = fmod((- target_angle + 90.0), 360.0);
-    ROS_INFO("Target angle : %.1f", target_angle);
+    double target_angle_modified = 0;
 
-    double angle_error = car_angle - target_angle;
+    if (target_angle <= 0) {
+        target_angle_modified = 180.0 + (180.0 + target_angle);
+    }
+    else { target_angle_modified = target_angle; }
 
-    // if (angle_error >= 180) {
-    //     angle_error -= 360;
-    // }
-    // if (angle_error <= -180) {
-    //     angle_error += 360;
-    // }
+    ROS_INFO("Target angle : %.1f", target_angle_modified);
+    ROS_INFO("Car angle : %.2f", car_angle);
+
+    double angle_error = car_angle - target_angle_modified;
+
+    if (angle_error >= 180) {
+        angle_error -= 360;
+    }
+    if (angle_error <= -180) {
+        angle_error += 360;
+    }
+
+    ROS_INFO("Angle error : %.2f", angle_error);
 
     return angle_error;
 }
@@ -160,6 +170,17 @@ void GPS_STANLEY::chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2)
     tf::Matrix3x3 m(q);
     double roll, pitch;
     m.getRPY(roll, pitch, imu_yaw);
-    // imu_yaw = fmod((- rad2deg(imu_yaw) - 90.0), 90.0);
-    imu_yaw = fmod((- rad2deg(imu_yaw) + 90.0), 360.0);
+
+    // imu_yaw = fmod((- rad2deg(imu_yaw) + 90.0), 360.0);
+
+    imu_yaw = - rad2deg(imu_yaw) + 90.0;
+
+    if (imu_yaw <= 0) {
+        imu_yaw_modified = 180.0 + (180.0 + imu_yaw);
+    }
+    else { imu_yaw_modified = imu_yaw; }
+
+    // imu_yaw_rate = msg_2->angular_velocity.z;
 }
+
+
