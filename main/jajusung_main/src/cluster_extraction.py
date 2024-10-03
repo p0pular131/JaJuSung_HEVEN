@@ -9,7 +9,7 @@ from time import time
 from sensor_msgs.msg import PointCloud2
 from jajusung_main.msg import lane_info
 from std_msgs.msg import Float32MultiArray
-from utils import make_cv2, pcl_to_ros, ros_to_pcl, list_to_multiarray, clustering, draw_polyfit_lane
+from utils import make_cv2, ros_to_list, clustering, draw_lane
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
 
@@ -25,15 +25,6 @@ class LiDARProcessor:
 
         self.cluster_publisher = rospy.Publisher(
             "/clustered_cloud", PointCloud2, queue_size=10, latch=True
-        )
-        self.filtered_cloud_publisher = rospy.Publisher(
-            "/filtered_cloud", PointCloud2, queue_size=10
-        )
-        self.lane_angle_publisher = rospy.Publisher(
-            "/lane_angle", Float32MultiArray, queue_size=10
-        )
-        self.lane_offset_publisher = rospy.Publisher(
-            "/lane_offset", Float32MultiArray, queue_size=10
         )
         self.lane_info_publisher = rospy.Publisher(
             "lane_result", lane_info, queue_size=10
@@ -77,29 +68,10 @@ class LiDARProcessor:
     def sync_callback(self, cloud_yellow, cloud_blue):
         # rospy.loginfo("Received PointCloud2 message")
         with self.lock:
-            yellow_bev_points_list = []
-            blue_bev_points_list = []
-
             # Convert ROS PointCloud2 message to PCL data
-            for cloud_msg, color in [(cloud_yellow, "yellow"), (cloud_blue, "blue")]:
-                cloud = ros_to_pcl(cloud_msg)
-
-                bev_points_list = []
-                for data in pc2.read_points(
-                    pcl_to_ros(cloud.to_list()),
-                    skip_nans=True,
-                    field_names=("x", "y", "z", "rgb"),
-                ):
-                    if color == "yellow":
-                        yellow_bev_points_list.append([data[0], data[1], 0])
-
-                    else:
-                        blue_bev_points_list.append([data[0], data[1], 0])
-
-                bev_cloud_msg = pcl_to_ros(bev_points_list, None)
-                self.filtered_cloud_publisher.publish(bev_cloud_msg)
-                # rospy.loginfo("ROI-filtered BEV points published")
-
+            yellow_bev_points_list = ros_to_list(cloud_yellow)
+            blue_bev_points_list = ros_to_list(cloud_blue)
+            
             # Cluster pointclouds
             yellow_clouds, yellow_cluster_indices = clustering(yellow_bev_points_list)
             blue_clouds, blue_cluster_indices = clustering(blue_bev_points_list)
@@ -119,7 +91,6 @@ class LiDARProcessor:
 
             # Exception handling for single side lane detection
             if self.is_left_lane_reliable() ^ self.is_right_lane_reliable():
-                # rospy.loginfo("Sigle lane detected")
                 if self.is_right_lane_reliable():
                     left_lane_offset = 200
                     left_lane_angle = right_lane_angle
@@ -130,14 +101,6 @@ class LiDARProcessor:
                     self.previous_lane_angle[1] = right_lane_angle
 
             # Publish
-            lane_angle = [left_lane_angle, right_lane_angle]
-            lane_angle_msg = list_to_multiarray(lane_angle)
-            self.lane_angle_publisher.publish(lane_angle_msg)
-
-            lane_offset = [left_lane_offset, right_lane_offset]
-            lane_offset_msg = list_to_multiarray(lane_offset)
-            self.lane_offset_publisher.publish(lane_offset_msg)
-
             curr_info = lane_info()
             curr_info.left_x = int(left_lane_offset)
             curr_info.right_x = int(right_lane_offset)
@@ -230,10 +193,10 @@ class LiDARProcessor:
             with self.lock:
                 if self.frame is not None:
                     if self.is_left_lane_reliable():
-                        draw_polyfit_lane(self.frame, self.left_cluster_dots)
+                        draw_lane(self.frame, self.left_cluster_dots)
 
                     if self.is_right_lane_reliable():
-                        draw_polyfit_lane(self.frame, self.right_cluster_dots)
+                        draw_lane(self.frame, self.right_cluster_dots)
 
                     for i in range(0, width, 80):
                         cv2.line(self.frame, (i, 0), (i, height), (0, 0, 0), 1)

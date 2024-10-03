@@ -39,6 +39,13 @@ def ros_to_pcl(ros_cloud):
     pcl_data.from_list(points_list)
     return pcl_data
 
+def ros_to_list(ros_cloud):
+    """Converts a ROS PointCloud2 message to a list"""
+    points_list = []
+    for data in pc2.read_points(ros_cloud, skip_nans=True, field_names=("x", "y", "z")):
+        points_list.append([data[0], data[1], data[2]])
+
+    return points_list
 
 def pcl_to_ros(pcl_array, color=None):
     """Converts a PCL PointCloud into a ROS PointCloud2 message. Uses a default color if none is provided."""
@@ -73,17 +80,12 @@ def pcl_to_ros(pcl_array, color=None):
     return ros_msg
 
 
-def draw_polyfit_lane(frame, clustered_dots, dim=1):
+def draw_lane(frame, clustered_dots):
+    clustered_dots = clustered_dots[np.argsort(clustered_dots[:, 1])]
     x_coords = clustered_dots[:, 0]
     y_coords = clustered_dots[:, 1]
-    coeffecients = np.polyfit(x_coords, y_coords, dim)
-    polynomial = np.poly1d(coeffecients)
-
-    x_dense = np.linspace(min(x_coords), max(x_coords), 10).astype(int)
-    y_dense = polynomial(x_dense).astype(int)
-
     previous_point = None
-    for point in zip(x_dense, y_dense):
+    for point in zip(x_coords, y_coords):
         if previous_point is not None:
             cv2.line(frame, previous_point, point, (255, 0, 0), 2)
         previous_point = point
@@ -115,7 +117,8 @@ def clustering(bev_points_list):
     ec.set_SearchMethod(tree)
     cluster_indices = ec.Extract()
     # rospy.loginfo("Cluster extraction complete")
-    # rospy.loginfo("Number of clusters found: {}".format(len(cluster_indices)))
+    rospy.loginfo("Number of clusters found: {}".format(len(cluster_indices)))
+    # rospy.loginfo("Number of BEV points: {}".format(str(len(bev_points_list))))
     return bev_cloud_xy0, cluster_indices
 
 
@@ -139,7 +142,7 @@ def make_cv2(clouds, bev_frame_size):
             # rospy.loginfo(
             #     f"x_coords:{statistics.median(x_coords)}, y_coords:{statistics.median(y_coords)}"
             # )
-            centroid_y = center_y + (-statistics.median(x_coords) * 60) + 550
+            centroid_y = center_y + (-statistics.median(x_coords) * 60) + 400
             centroid_x = center_x + (-statistics.median(y_coords) * 50)
             centroid_image_coord = (int(centroid_x), int(centroid_y))
             cv2.circle(frame, centroid_image_coord, 10, color_rgb, -1)

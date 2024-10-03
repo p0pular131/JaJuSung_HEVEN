@@ -182,14 +182,18 @@ public:
         yellow_cone_points_.clear();
 
         // 왼쪽 이미지에서 라바콘 색상 필터링 -> 파란색 추출
+        pcl::PointXYZ left_flattened;
+        pcl::PointXYZ right_flattened;
+        
         for (size_t i = 0; i < left_image_points.size(); ++i) {
             const cv::Point2i& pt = left_image_points[i];
             if (pt.x >= 0 && pt.x < cone_seg_left.cols && pt.y >= 0 && pt.y < cone_seg_left.rows) {
                 cv::Vec3b color = cone_seg_left.at<cv::Vec3b>(pt); 
                 if (pt.x < left_image_.cols && pt.y < left_image_.rows && !left_image_.empty())
                 cv::circle(left_image_, pt, 2, cv::Scalar(255, 0, 0), -1);
-                if (color[0] > 100) {  
-                    blue_cone_points_.push_back(left_valid_world_points[i]);
+                if (color[0] > 100) {
+                    left_flattened = {left_valid_world_points[i].x, left_valid_world_points[i].y, 0};
+                    blue_cone_points_.push_back(left_flattened);
                     cv::circle(cone_seg_left, pt, 2, cv::Scalar(255, 0, 0), -1);
                 }
             } else {
@@ -204,8 +208,9 @@ public:
                 cv::Vec3b color = cone_seg_right.at<cv::Vec3b>(pt); 
                 if (pt.x < right_image_.cols && pt.y < right_image_.rows && !right_image_.empty())
                 cv::circle(right_image_, pt, 2, cv::Scalar(255, 0, 0), -1);
-                if (color[1] > 100) {  
-                    yellow_cone_points_.push_back(right_valid_world_points[i]);
+                if (color[1] > 100) {
+                    right_flattened = {right_valid_world_points[i].x, right_valid_world_points[i].y, 0};
+                    yellow_cone_points_.push_back(right_flattened);
                     cv::circle(cone_seg_right, pt, 2, cv::Scalar(0, 255, 255), -1);
                 }
             } else {
