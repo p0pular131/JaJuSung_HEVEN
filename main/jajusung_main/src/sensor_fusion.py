@@ -4,6 +4,8 @@ import rospy
 import cv2
 import numpy as np
 import pcl  # Python PCL 라이브러리
+import time
+import torch
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointField
 import std_msgs.msg
@@ -12,35 +14,10 @@ from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
 from math import radians, cos, sin
 
-# 각 x, y, z축 기준 회전각도 (카메라를 LiDAR와 맞추기 위한 회전각)
-ALPHA = 5
-BETA = 2
-GAMMA = 0
-
 # 카메라의 내부 파라미터 행렬
 intrinsic_matrix = np.array([[611.768234, 0.000000, 306.164069],
                              [0.000000, 613.154786, 233.896019],
                              [0.000000, 0.000000, 1.000000]])
-
-# 회전 행렬 정의
-R_x = np.array([[1, 0, 0], 
-                [0, cos(radians(ALPHA)), -sin(radians(ALPHA))], 
-                [0, sin(radians(ALPHA)), cos(radians(ALPHA))]])
-
-R_y = np.array([[cos(radians(BETA)), 0, sin(radians(BETA))],
-                [0, 1, 0],
-                [-sin(radians(BETA)), 0, cos(radians(BETA))]])
-
-R_z = np.array([[cos(radians(GAMMA)), -sin(radians(GAMMA)), 0],
-                [sin(radians(GAMMA)), cos(radians(GAMMA)), 0],
-                [0, 0, 1]])
-
-R_axis = np.array([[0, -1, 0],
-                   [0, 0, -1],
-                   [1, 0, 0]])
-
-# 최종 회전 행렬
-R = R_z @ R_y @ R_x @ R_axis
 
 # 외부 파라미터 행렬 정의
 extrinsic_matrix = np.array(
@@ -71,16 +48,18 @@ class Fusion():
 
         self.image_sub = rospy.Subscriber("usb_cam/image_raw", Image, self.camera_callback)
         self.lidar_sub = rospy.Subscriber("/velodyne_points", PointCloud2, self.lidar_callback)
+        self.cone_sub = rospy.Subscriber("cone_result", Image, self.cone_callback)
         self.roi_pub = rospy.Publisher('/roi_pointcloud', PointCloud2, queue_size=10)
         self.blue_pub = rospy.Publisher('/cloud_blue',PointCloud2, queue_size=10)
         self.yellow_pub = rospy.Publisher('/cloud_yellow',PointCloud2, queue_size=10)
 
         self.yellow_cloud = PointCloud2()
         self.blue_cloud = PointCloud2()
-
+        self.cone_seg = torch.zeros((480, 640, 3))  # [H, W, C]
         # 각 라바콘 영역 내의 LiDAR 포인트 저장
-        self.blue_cone_points = []
-        self.yellow_cone_points = []
+        self.blue_cone_points = None
+        self.yellow_cone_points = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     def camera_callback(self, data):
         # 카메라 데이터를 받아와서 이미지를 저장
@@ -89,47 +68,14 @@ class Fusion():
         # 라바콘을 감지하고 그 좌표를 업데이트
         self.blue_cones, self.yellow_cones = self.process_frame(self.image)
 
-    def process_frame(self, frame):
-        # 이미지 데이터를 HSV 색상 공간으로 변환
-        hsv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-        # 색상 범위 정의
-        # lower_blue = np.array([90, 100, 40])    # 파란색 범위
-        lower_blue = np.array([90, 190, 100])    # 파란색 범위
-        upper_blue = np.array([150, 255, 255])
-
-        lower_yellow = np.array([5, 70, 120])  # 노란색 범위
-        # lower_yellow = np.array([5, 130, 160])  # 노란색 범위
-        upper_yellow = np.array([30, 255, 255])
-
-        
-        # HSV 이미지에서 파란색과 노란색만 추출
-        mask_blue = cv2.inRange(hsv_image, lower_blue, upper_blue)
-        mask_yellow = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
-        
-        # 각 색상의 마스크에서 컨투어 찾기
-        contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contours_yellow, _ = cv2.findContours(mask_yellow, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        blue_coords = []
-        for contour in contours_blue:
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-                cx = int(M['m10'] / M['m00'])
-                cy = int(M['m01'] / M['m00'])
-                blue_coords.append((cx, cy))
-        
-        yellow_coords = []
-        for contour in contours_yellow:
-            M = cv2.moments(contour)
-            if M['m00'] != 0:
-                cx = int(M['m10'] / M['m00'])
-                cy = int(M['m01'] / M['m00'])
-                yellow_coords.append((cx, cy))
-
-        return blue_coords, yellow_coords
+    def cone_callback(self, data):
+        cone_seg = self.bridge.imgmsg_to_cv2(data, desired_encoding="bgr8")
+        self.cone_seg = torch.from_numpy(cone_seg).to(self.device)
 
     def lidar_callback(self, data):
+        global intrinsic_matrix
+        global extrinsic_matrix
+
         # PointCloud2 메시지를 PCL 포맷으로 변환
         pcl_cloud = pcl_helper.ros_to_pcl(data)
         
@@ -151,57 +97,56 @@ class Fusion():
         roi_cloud = pcl_helper.pcl_to_ros(cloud)
         roi_cloud.header.frame_id = "velodyne"
         self.roi_pub.publish(roi_cloud)
-    
-        # 각 라바콘 영역 내의 LiDAR 포인트 저장 리스트 초기화
-        self.blue_cone_points.clear()
-        self.yellow_cone_points.clear()
 
-        for point in pc2.read_points(roi_cloud, field_names=("x", "y", "z"), skip_nans=True):
-            x, y, z = point[:3]
+        points = np.array(list(pc2.read_points(roi_cloud, field_names=("x", "y", "z"), skip_nans=True)))
+        points = torch.from_numpy(points).to(self.device)
 
-            # 4x1 벡터 생성
-            world_point = np.array([[x], [y], [z], [1]]) 
+        ones_tensor = torch.ones((points.shape[0], 1), device=self.device)
+        world_points = torch.cat((points, ones_tensor), dim=1)
 
-            # 3x1 벡터로 변환
-            projected_point = intrinsic_matrix @ extrinsic_matrix @ world_point
+        intrinsic_matrix = torch.tensor(intrinsic_matrix, device=self.device)
+        extrinsic_matrix = torch.tensor(extrinsic_matrix, device=self.device)
 
-            scaling = projected_point[2][0]
+        with torch.no_grad():
+            projected_points = intrinsic_matrix @ extrinsic_matrix @ world_points.T
+            image_points = projected_points[:2] / projected_points[2]
+            image_points = image_points.T.to(torch.int)
 
-            if scaling == 0:
-                continue
+            x_coords = image_points[:, 0]
+            y_coords = image_points[:, 1]
+            x_min, x_max, y_min, y_max = 0, 640, 0, 480
 
-            image_point = projected_point / scaling
+            in_bounds = (x_coords >= x_min) & (x_coords < x_max) & (y_coords >= y_min) & (y_coords < y_max)
+            valid_points = image_points[in_bounds]
+            valid_world_points = points[in_bounds]
 
-            coord = (int(image_point[0][0]), int(image_point[1][0]))
+            valid_x_coords = valid_points[:, 0]
+            valid_y_coords = valid_points[:, 1]
+        
+            blue_channel = self.cone_seg[valid_y_coords, valid_x_coords, 0]
+            yellow_channel = self.cone_seg[valid_y_coords, valid_x_coords, 1]
 
-            # 이미지 내의 좌표 체크
-            if 0 <= coord[0] < 640 and 0 <= coord[1] < 480:
-                # 파란색 라바콘 영역 내의 포인트
-                if self.is_point_in_cone(coord, self.blue_cones):
-                    self.blue_cone_points.append((x, y, z))
-                    cv2.circle(self.image, coord, 2, (255, 0, 0), -1)  # 파란색으로 표시
-                # 노란색 라바콘 영역 내의 포인트
-                elif self.is_point_in_cone(coord, self.yellow_cones):
-                    self.yellow_cone_points.append((x, y, z))
-                    cv2.circle(self.image, coord, 2, (0, 255, 255), -1)  # 노란색으로 표시
+            blue_mask = blue_channel > 100
+            yellow_mask = yellow_channel > 100
 
-        # 결과 출력
-        # print("Blue cone LiDAR points:", self.blue_cone_points)
-        # print("Yellow cone LiDAR points:", self.yellow_cone_points)
-                    
+            self.blue_cone_points = valid_world_points[blue_mask].cpu().numpy()
+            self.yellow_cone_points = valid_world_points[yellow_mask].cpu().numpy()
+
+        valid_points_numpy = valid_points.cpu().numpy()
+        blue_coords = valid_points_numpy[blue_mask.cpu().numpy()]
+        yellow_coords = valid_points_numpy[yellow_mask.cpu().numpy()]
+
+        for coord in blue_coords:
+            cv2.circle(self.image, tuple(coord), 2, (255, 0, 0), -1)  # Blue
+        for coord in yellow_coords:
+            cv2.circle(self.image, tuple(coord), 2, (0, 0, 0), -1)  # Black
+
+        # Display the result
         cv2.imshow("Result", self.image)
         cv2.waitKey(1)
-                    
+
+        # Publish clouds
         self.publish_clouds()
-    
-    def is_point_in_cone(self, coord, cone_coords, radius=20):
-        """
-        2D 이미지 좌표에서 특정 라바콘 영역 내의 포인트인지 체크
-        """
-        for (cx, cy) in cone_coords:
-            if (coord[0] - cx) ** 2 + (coord[1] - cy) ** 2 <= radius ** 2:
-                return True
-        return False
     
     def publish_clouds(self) :
         header = std_msgs.msg.Header()
@@ -214,11 +159,11 @@ class Fusion():
             PointField('z', 8, PointField.FLOAT32, 1)
         ]
 
-        if self.blue_cone_points:
+        if self.blue_cone_points.size > 0:
             self.blue_cloud = pc2.create_cloud(header, fields, self.blue_cone_points)
             self.blue_pub.publish(self.blue_cloud)
 
-        if self.yellow_cone_points:
+        if self.yellow_cone_points.size > 0:
             self.yellow_cloud = pc2.create_cloud(header, fields, self.yellow_cone_points)
             self.yellow_pub.publish(self.yellow_cloud)
 

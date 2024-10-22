@@ -21,7 +21,7 @@ int Lane_Controller::normalize_delta(int delta) {
     return delta;
 }
 
-void Lane_Controller::lane_cb(const lane_ctrl::lane_info::ConstPtr& data) {
+void Lane_Controller::lane_cb(const jajusung_main::lane_info::ConstPtr& data) {
     this_left = double(data->left_x);
     this_right = double(data->right_x);
     std::cout<<"left, right : "<<this_left<<' '<<this_right<<'\n';
