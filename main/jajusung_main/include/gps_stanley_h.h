@@ -7,9 +7,7 @@
 #include <map>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/Imu.h>
-#include <erp42_msgs/DriveCmd.h>
-#include <erp42_msgs/ModeCmd.h>
-
+#include <jajusung_main/HevenCtrlCmd.h>
 #include "ros/ros.h"
 
 
@@ -21,8 +19,7 @@ public:
         sub_1 = nh.subscribe<sensor_msgs::NavSatFix>("/ublox_gps/fix", 10, &GPS_STANLEY::chatterCallback_1, this);
         sub_2 = nh.subscribe<sensor_msgs::Imu>("/imu", 10, &GPS_STANLEY::chatterCallback_2, this);
 
-        drive_pub = nh.advertise<erp42_msgs::DriveCmd>("/drive", 10);
-        mode_pub = nh.advertise<erp42_msgs::ModeCmd>("/mode", 10);
+        drive_pub = nh.advertise<jajusung_main::HevenCtrlCmd>("/drive", 10);
         
         init_dict();
     }
@@ -50,7 +47,6 @@ public:
 private:
     ros::NodeHandle nh; 
     ros::Publisher drive_pub;
-    ros::Publisher mode_pub;
     ros::Subscriber sub_1;
     ros::Subscriber sub_2;
     

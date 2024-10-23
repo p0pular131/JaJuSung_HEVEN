@@ -1,0 +1,199 @@
+VERSION ""
+
+
+NS_ : 
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_:
+VAL_TABLE_ cmd_estop_toggle 1 "on" 0 "off" ;
+VAL_TABLE_ fd_manual_auto_switch 1 "switch auto" 0 "switch manual" ;
+VAL_TABLE_ fd_estop_toggle 1 "on" 0 "off" ;
+VAL_TABLE_ fd_vcu_mode 4 "E-stop" 3 "take_over" 2 "auto" 1 "manual" 0 "none" ;
+VAL_TABLE_ fd_vcu_state 2 "abnormal state" 1 "operating state" 0 "initial state" ;
+VAL_TABLE_ cmd_motor_speed_limit 3 "1x" 2 "1/2x" 1 "1/10x" 0 "1/50x" ;
+VAL_TABLE_ cmd_motor_torq_direction 1 "drive" ;
+VAL_TABLE_ cmd_enable_ 1 "auto" 0 "manual" ;
+VAL_TABLE_ Vt_Feed_Success 1 "Success" 0 "Fail" ;
+VAL_TABLE_ Vt_Motora_Fault_status 32768 "Reserved" 16384 "Over Current (>60A)" 8192 "Over Voltage" 4096 "Normal" 2048 "Reserved" 1024 "reserved" 512 "Reserved" 256 "Less Voltage" 128 "Reserved" 64 "Over Temperature (>85deg)" 32 "Reserved" 16 "Reserved" 8 "Reserved" 4 "CAN break" 2 "Reserved" 1 "Reserved" 0 "none" ;
+VAL_TABLE_ Vt_Intel_Fault_status 32768 "Reserved" 16384 "CAN break" 8192 "Reserved" 4096 "Reserved" 2048 "Reserved" 1024 "Over Temperature (>85deg)" 512 "Reserved" 256 "Reserved" 128 "Reserved" 64 "reserved" 32 "Reserved" 16 "Less Voltage" 8 "Reserved" 6 "Description for the value '0x6'" 5 "Description for the value '0x5'" 4 "Over Current (>60A)" 3 "Description for the value '0x3'" 2 "Over Voltage" 1 "Normal" 0 "none" ;
+VAL_TABLE_ Vt_Zero_set 2 "Clear Setting" 1 "Set Angle Zero" 0 "None" ;
+VAL_TABLE_ Vt_Mode_Changed 0 "Mode: Manual" 1 "Mode: Auto" ;
+
+
+BO_ 2147484336 VCU_FEED_STR_DATA2: 8 Vector__XXX
+ SG_ fd_str_str_angle_value : 0|16@1- (0.1,0) [-35536|35535] "" Vector__XXX
+
+BO_ 2254438401 VCU_FEED_STR_DATA1: 8 Vector__XXX
+ SG_ fd_str_enable_ : 0|1@1- (1,0) [0|1] "" Vector__XXX
+
+BO_ 2256535553 UPPER_CMD_STR_DATA: 8 Vector__XXX
+ SG_ cmd_str_reverse : 4|1@1- (1,0) [0|0] "" Vector__XXX
+ SG_ cmd_str_angle_value : 8|56@1- (10,0) [-5000|5000] "" Vector__XXX
+ SG_ cmd_enable_ : 0|1@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 2149206272 VCU_FEED_MT_DATA: 8 Vector__XXX
+ SG_ fd_motor_torq_direction : 22|2@1+ (1,0) [0|2] "" Vector__XXX
+ SG_ fd_manual_auto_switch : 24|1@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ motor_alive_count : 56|8@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ fd_vcu_state : 1|3@1+ (1,0) [0|2] "" Vector__XXX
+ SG_ fd_motor_torq_value : 8|14@1+ (1,0) [0|3200] "" Vector__XXX
+ SG_ fd_vcu_mode : 4|4@1+ (1,0) [0|4] "" Vector__XXX
+ SG_ fd_estop_toggle : 39|1@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ fd_enable : 0|1@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 2149206016 UPPER_CMD_DATA: 8 Vector__XXX
+ SG_ cmd_estop_toggle : 32|1@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ cmd_motor_speed_limit : 24|2@1+ (1,0) [0|3] "" Vector__XXX
+ SG_ cmd_motor_torq_value : 8|14@1+ (1,0) [0|3200] "" Vector__XXX
+ SG_ motor_alive_count : 56|8@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ cmd_motor_torq_direction : 22|2@1+ (1,0) [0|2] "" Vector__XXX
+ SG_ cmd_enable_ : 0|1@1+ (1,0) [0|1] "" Vector__XXX
+
+BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX
+ SG_ Query_Feed_Data : 0|8@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ MotorCurrent_Temper_Voltage : 0|8@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ Fault_status : 0|16@1+ (1,0) [0|0] "" Vector__XXX
+
+BO_ 2263875585 Feed_CtrlParam: 8 Vector__XXX
+ SG_ Success_fail : 0|64@1- (1,0) [0|1] "" Vector__XXX
+
+BO_ 2257584129 Control_Parameter: 8 Auto_Steering_System
+ SG_ Proportional_gain : 48|16@1+ (100,0) [0|65535] "" Vector__XXX
+ SG_ Integral_gain : 32|16@1+ (100,0) [0|65535] "" Vector__XXX
+ SG_ Derivarive_gain : 16|16@1+ (100,0) [0|65535] "" Vector__XXX
+ SG_ angle_zero_set : 0|16@1+ (1,0) [0|3] "" Vector__XXX
+
+BO_ 2239758337 Feed_MotorStatus: 6 Vector__XXX
+ SG_ Reply_Fault_Msg : 39|16@0+ (1,0) [0|65535] "" Vector__XXX
+
+BO_ 2254438401 Feed_AngleSensorValue: 8 Vector__XXX
+ SG_ AngleSensorValue : 0|64@1- (0.01,0) [-39.99|39.99] "deg" Vector__XXX
+
+BO_ 2264924161 Feed_Hearbeat_return: 8 Vector__XXX
+ SG_ RelativeMotorAngle : 0|16@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ FaultStatus : 48|16@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ CurrentMotorSpeed : 16|16@1+ (1,0) [0|0] "" Vector__XXX
+ SG_ CurrentCommand : 32|16@1+ (1,0) [0|0] "" Vector__XXX
+
+BO_ 2256535553 TargetSteeringAngle: 8 Auto_Steering_System
+ SG_ TargetSteeringAngle : 0|64@1- (100,0) [-399999|399999] "deg" Vector__XXX
+
+BO_ 2255486977 ManualAutoMode: 8 Auto_Steering_System
+ SG_ Mode : 0|64@1+ (1,0) [0|0] "" Vector__XXX
+
+BO_ 2248146945 ControllertoMotor: 8 Auto_Steering_System
+ SG_ Query : 0|64@1+ (1,0) [0|0] "" Vector__XXX
+
+CM_ SG_ 2147484336 fd_str_str_angle_value "-35,536 ~ 35,535 ";
+CM_ SG_ 2256535553 cmd_str_reverse "It is depended on angle sensor's direction.
+You should check the manual in the ADUS' classroom.";
+CM_ SG_ 2256535553 cmd_str_angle_value "[Raw HEX] -5,000 ~ 5,000 degree";
+CM_ SG_ 2149206272 fd_motor_torq_direction "always D gear state
+";
+CM_ SG_ 2149206272 motor_alive_count "Increasing data
+";
+CM_ SG_ 2149206272 fd_motor_torq_value "0~3200(ampere)";
+CM_ SG_ 2149206016 cmd_motor_torq_value "0~3200(ampere)";
+CM_ SG_ 2149206016 motor_alive_count "Increasing data
+";
+CM_ SG_ 2149206016 cmd_motor_torq_direction "always D gear state
+";
+CM_ BO_ 3221225472 "This is a message for not used signals, created by Vector CANdb++ DBC OLE DB Provider.";
+CM_ SG_ 2257584129 angle_zero_set "0: none
+1: Zero set angle sensor";
+CM_ SG_ 2239758337 Reply_Fault_Msg "MUST watch the value table";
+CM_ SG_ 2264924161 FaultStatus "MUST watch the Value Table";
+CM_ SG_ 2255486977 Mode "MUST watch the value table";
+CM_ BO_ 2248146945 "Motor_Current:  0x0000000001210040
+Motor_Temp.:   0x0000000001210F40
+Suppy_Voltage: 0x0000000002210D40
+Motor_Fault:     0x0000000001211240
+E-stop process: 0x0000000001200C23
+
+Query message to Motor processor:
+";
+CM_ SG_ 2248146945 Query "Motor_Current:  0x0000000001210040
+Motor_Temp.:   0x0000000001210F40
+Suppy_Voltage: 0x0000000002210D40
+Motor_Fault:     0x0000000001211240
+E-stop process: 0x0000000001200C23
+
+Query message to Motor processor:
+
+";
+
+BA_DEF_  "MultiplexExtEnabled" ENUM  "No","Yes";
+BA_DEF_ BO_  "CANFD_BRS" ENUM  "0","1";
+BA_DEF_  "DBName" STRING ;
+BA_DEF_  "BusType" STRING ;
+BA_DEF_ BU_  "NodeLayerModules" STRING ;
+BA_DEF_ BU_  "ECU" STRING ;
+BA_DEF_ BU_  "CANoeJitterMax" INT 0 0;
+BA_DEF_ BU_  "CANoeJitterMin" INT 0 0;
+BA_DEF_ BU_  "CANoeDrift" INT 0 0;
+BA_DEF_ BU_  "CANoeStartDelay" INT 0 0;
+BA_DEF_ BO_  "VFrameFormat" ENUM  "StandardCAN","ExtendedCAN","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","reserved","StandardCAN_FD","ExtendedCAN_FD";
+BA_DEF_DEF_  "MultiplexExtEnabled" "No";
+BA_DEF_DEF_  "CANFD_BRS" "1";
+BA_DEF_DEF_  "DBName" "";
+BA_DEF_DEF_  "BusType" "CAN";
+BA_DEF_DEF_  "NodeLayerModules" "";
+BA_DEF_DEF_  "ECU" "";
+BA_DEF_DEF_  "CANoeJitterMax" 0;
+BA_DEF_DEF_  "CANoeJitterMin" 0;
+BA_DEF_DEF_  "CANoeDrift" 0;
+BA_DEF_DEF_  "CANoeStartDelay" 0;
+BA_DEF_DEF_  "VFrameFormat" "StandardCAN";
+BA_ "BusType" "CAN FD";
+BA_ "DBName" "ADUS_eDriving_Kit";
+BA_ "VFrameFormat" BO_ 2147484336 1;
+BA_ "VFrameFormat" BO_ 2254438401 1;
+BA_ "VFrameFormat" BO_ 2256535553 1;
+BA_ "VFrameFormat" BO_ 2149206272 1;
+BA_ "VFrameFormat" BO_ 2149206016 1;
+VAL_ 2254438401 fd_str_enable_ 1 "auto" 0 "manual" ;
+VAL_ 2149206272 fd_motor_torq_direction 1 "drive" ;
+VAL_ 2149206272 fd_manual_auto_switch 1 "switch auto" 0 "switch manual" ;
+VAL_ 2149206272 fd_vcu_state 2 "abnormal state" 1 "operating state" 0 "initial state" ;
+VAL_ 2149206272 fd_vcu_mode 4 "E-stop" 3 "take_over" 2 "auto" 1 "manual" 0 "none" ;
+VAL_ 2149206272 fd_estop_toggle 1 "on" 0 "off" ;
+VAL_ 2149206272 fd_enable 1 "auto" 0 "manual" ;
+VAL_ 2149206016 cmd_estop_toggle 1 "on" 0 "off" ;
+VAL_ 2149206016 cmd_motor_speed_limit 3 "1x" 2 "1/2x" 1 "1/10x" 0 "1/50x" ;
+VAL_ 2149206016 cmd_motor_torq_direction 1 "drive" ;
+VAL_ 2149206016 cmd_enable_ 1 "auto" 0 "manual" ;
+
+VAL_ 2263875585 Success_fail 1 "Success" 0 "Fail" ;
+VAL_ 2257584129 angle_zero_set 2 "Clear Setting" 1 "Set Angle Zero" 0 "None" ;
+VAL_ 2239758337 Reply_Fault_Msg 32768 "Reserved" 16384 "CAN break" 8192 "Reserved" 4096 "Reserved" 2048 "Reserved" 1024 "Over Temperature (>85deg)" 512 "Reserved" 256 "Reserved" 128 "Reserved" 64 "reserved" 32 "Reserved" 16 "Less Voltage" 8 "Reserved" 6 "Description for the value '0x6'" 5 "Description for the value '0x5'" 4 "Over Current (>60A)" 3 "Description for the value '0x3'" 2 "Over Voltage" 1 "Normal" 0 "none" ;
+VAL_ 2264924161 FaultStatus 32768 "Reserved" 16384 "CAN break" 8192 "Reserved" 4096 "Reserved" 2048 "Reserved" 1024 "Over Temperature (>85deg)" 512 "Reserved" 256 "Reserved" 128 "Reserved" 64 "reserved" 32 "Reserved" 16 "Less Voltage" 8 "Reserved" 6 "Description for the value '0x6'" 5 "Description for the value '0x5'" 4 "Over Current (>60A)" 3 "Description for the value '0x3'" 2 "Over Voltage" 1 "Normal" 0 "none" ;
+VAL_ 2255486977 Mode 0 "Mode: Manual" 1 "Mode: Auto" ;

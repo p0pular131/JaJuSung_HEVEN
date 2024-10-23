@@ -1,9 +1,8 @@
 #define _USE_MATH_DEFINES
 
 #include "ros/ros.h"
-#include "stanley_controller/lane_info.h"
-#include "erp42_msgs/DriveCmd.h"
-#include "erp42_msgs/ModeCmd.h"
+#include "jajusung_main/lane_info.h"
+#include "jajusung_main/HevenCtrlCmd.h"
 #include <math.h>
 #define STANLEY_K 0.25
 #define VELOCITY 20
@@ -11,7 +10,6 @@
 
 double delta = 0;
 ros::Publisher cmd_pub;
-ros::Publisher mod_pub;
 
 int normalize_delta(int delta)
 {
@@ -22,7 +20,7 @@ int normalize_delta(int delta)
 
 // 받아오는 data: left_x, right_x, left_theta, right_theta
 
-void chatterCallback(const stanley_controller::lane_info::ConstPtr& msg)
+void chatterCallback(const jajusung_main::lane_info::ConstPtr& msg)
 {
   double left_x = msg->left_x;
   double right_x = msg->right_x;
@@ -60,16 +58,12 @@ void chatterCallback(const stanley_controller::lane_info::ConstPtr& msg)
   // ROS_INFO("heading error: %.4f", head_err);
   ROS_INFO("delta: %.4f", delta);
 
-  erp42_msgs::DriveCmd drive_cmd;
-  erp42_msgs::ModeCmd mode_cmd;
+  jajusung_main::HevenCtrlCmd drive_cmd;
 
-  drive_cmd.KPH = VEL;
-  drive_cmd.Deg = normalize_delta(delta);
-  mode_cmd.MorA = 0x01;
-  mode_cmd.EStop = 0x00;
-  mode_cmd.Gear = 0x00;
+  drive_cmd.velocity = VEL;
+  drive_cmd.steering = normalize_delta(delta);
+  drive_cmd.brake = 0;
   cmd_pub.publish(drive_cmd);
-  mod_pub.publish(mode_cmd);
 }
 
 int main(int argc, char **argv)
@@ -82,8 +76,7 @@ int main(int argc, char **argv)
   ros::Subscriber sub = nh.subscribe("/lane_result", 100, chatterCallback);
 
   // Publisher
-  cmd_pub = nh.advertise<erp42_msgs::DriveCmd>("drive", 100);
-  mod_pub = nh.advertise<erp42_msgs::ModeCmd>("mode", 100);
+  cmd_pub = nh.advertise<jajusung_main::HevenCtrlCmd>("drive", 100);
   ros::spin();		// 큐에 요청된 콜백함수를 처리하며, 프로그램 종료시까지 반복함
 
   return 0;

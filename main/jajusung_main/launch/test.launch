@@ -1,0 +1,14 @@
+<launch>
+
+    <rosparam file="$(find jajusung_main)/config/params.yaml" command="load"/>
+
+    <!-- can init -->
+    <node name="canNode" pkg="jajusung_main" type="can_interface.py" output="screen" />
+
+    <!-- point -> scan -->
+    <node name="point2scan" pkg="jajusung_main" type="point_to_laserscan.py" output="screen" />
+
+    <!-- publish -->
+    <node name="test_jonghap" pkg="jajusung_main" type="jonghap_mission.py" output="screen"/>
+
+</launch>

@@ -9,8 +9,7 @@ Lane_Controller::Lane_Controller(EKF* input, ros::NodeHandle &nh) {
     lane_ekf = input;
     lane_ekf->dt = 0.037; lane_ekf->k = LANE_K; lane_ekf->wb = WB;
 
-    cmd_pub = nh.advertise<erp42_msgs::DriveCmd>("drive", 10); 
-    mod_pub = nh.advertise<erp42_msgs::ModeCmd>("mode", 10); 
+    cmd_pub = nh.advertise<jajusung_main::HevenCtrlCmd>("drive", 10); 
 
     lane_sub = nh.subscribe("lane_result", 10, &Lane_Controller::lane_cb, this); 
 }
@@ -70,16 +69,12 @@ void Lane_Controller::stanley() {
     // 최종 output은 degree
     else stanley_delta = rad2deg(heading_err + atan(LANE_K*lat_err/((VEL/3.6))));
 
-    erp42_msgs::DriveCmd drive_cmd;
-    erp42_msgs::ModeCmd mode_cmd;
+    jajusung_main::HevenCtrlCmd drive_cmd;
 
-    drive_cmd.KPH = VEL;
-    drive_cmd.Deg = normalize_delta(stanley_delta);
-    mode_cmd.MorA = 0x01;
-    mode_cmd.EStop = 0x00;
-    mode_cmd.Gear = 0x00;
+    drive_cmd.velocity = VEL;
+    drive_cmd.steering = normalize_delta(stanley_delta);
+    drive_cmd.brake = 0;
     cmd_pub.publish(drive_cmd);
-    mod_pub.publish(mode_cmd);
             
     // debug
     std::cout<<"======================="<<'\n';

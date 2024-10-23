@@ -18,7 +18,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   cv_bridge
   message_generation
-  erp42_msgs
   image_transport
   pcl_ros
   pcl_conversions
@@ -29,6 +28,7 @@ add_message_files(
   FILES
   # ERP42CtrlCmd.msg
   lane_info.msg
+  HevenCtrlCmd.msg
 )
 
 generate_messages(
@@ -39,7 +39,7 @@ generate_messages(
 
 catkin_package(
 #  INCLUDE_DIRS include
- LIBRARIES erp42_msgs jajusung_main
+ LIBRARIES jajusung_main
  CATKIN_DEPENDS roscpp rospy sensor_msgs std_msgs message_runtime
 #  DEPENDS system_lib
 )

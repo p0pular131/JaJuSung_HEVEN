@@ -1,8 +1,6 @@
 #include "gps_stanley_h.h"
 #include <iostream>
 #include <utility>
-#include <erp42_msgs/DriveCmd.h>
-#include <erp42_msgs/ModeCmd.h>
 #include <tf/transform_datatypes.h>
 #include <sensor_msgs/Imu.h>
 #include <cmath>
@@ -85,15 +83,12 @@ double GPS_STANLEY::gps_stanley()
 
     double stanley_delta = rad2deg(deg2rad(final_steer_angle) + atan(LANE_K*lateral_error/((VEL/3.6))));
 
-    erp42_msgs::DriveCmd drive_cmd;
-    drive_cmd.KPH = VEL;
-    drive_cmd.Deg = (int)stanley_delta;
+    jajusung_main::HevenCtrlCmd drive_cmd;
+    drive_cmd.velocity = VEL;
+    drive_cmd.steering = (int)stanley_delta;
+    drive_cmd.brake = 0;
     // if(drive_cmd.Deg > 25) drive_cmd.Deg = 25;
     // else if(drive_cmd.Deg < -25) drive_cmd.Deg = -25;
-    erp42_msgs::ModeCmd mode_cmd;
-    mode_cmd.MorA = 0x01;
-    mode_cmd.EStop = 0x00;
-    mode_cmd.Gear = 0x00;
     std::cout<<"================lateral_error : "<<rad2deg(atan(LANE_K*lateral_error/((VEL/3.6))))<<'\n';
     std::cout<<"================heading_error : "<<final_steer_angle<<'\n';
     // std::cout<<"================heading_error not saturated : "<<curr_angle_error<<'\n';
@@ -101,7 +96,6 @@ double GPS_STANLEY::gps_stanley()
     std::cout<<"================target_idx : "<<TRACK_IDX<<'\n';
     // std::cout << imu_yaw_rate << std::endl;
     drive_pub.publish(drive_cmd);
-    mode_pub.publish(mode_cmd);
 
     return stanley_delta;
 }
