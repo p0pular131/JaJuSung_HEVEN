@@ -58,6 +58,9 @@ class Jeddong():
         if(self.braking) :
             m.brake = 1
             m.velocity = 0
+            rospy.loginfo("=============ESTOP!!")
+        else :
+            rospy.loginfo("Drive . . . ")
         self.vel_pub.publish(m)
         
 

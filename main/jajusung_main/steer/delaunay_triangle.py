@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -7,29 +7,22 @@ import numpy as np
 import math
 from sklearn.cluster import DBSCAN
 from geometry_msgs.msg import Point
-from std_msgs.msg import Header, ColorRGBA
+from std_msgs.msg import Header, ColorRGBA, Float32MultiArray
 from visualization_msgs.msg import Marker, MarkerArray
 from scipy.spatial import Delaunay
 
 
 class PointCloudProcessor:
     def __init__(self):
-        self.sub = rospy.Subscriber("/velodyne_points", PointCloud2, self.callback) # Raw 라이다 데이터 구독
+        self.sub = rospy.Subscriber("/livox/lidar", PointCloud2, self.callback) # Raw 라이다 데이터 구독
 
         self.pub_clusters = rospy.Publisher("/clustered_centroids", PointCloud2, queue_size=1) # 라바콘 clusters 발행
         self.pub_triangles = rospy.Publisher("/delaunay_triangles", MarkerArray, queue_size=1) # delaunay 삼각형 발행
         self.pub_midpoints = rospy.Publisher("/delaunay_midpoints", MarkerArray, queue_size=1) # delaunay 삼각형으로 추출한 target points 발행 
-
+        self.pub_path = rospy.Publisher("/midpoint_gradients", Float32MultiArray, queue_size=1)
         # marker namespace 정의
         self.marker_ns_tri = "delaunay"
         self.marker_ns_avg = "avg_points"
-
-
-        # 제외할 차량 앞부분 범위 
-        self.x_min_car, self.x_max_car = -0.7, 0.2
-        self.y_min_car, self.y_max_car = -0.4, 0.4
-        self.z_min_car, self.z_max_car = -0.4, 0.2
-
 
         '''
         =========================================================================
@@ -37,11 +30,13 @@ class PointCloudProcessor:
         =========================================================================
         '''
         # ROI 범위 설정 
-        self.x_min_roi, self.x_max_roi = -0.7, 5.0 # x축 최대 최소
-        self.y_min_roi, self.y_max_roi = -3.5, 2.0 # y축 최대 최소
-        self.z_min_roi, self.z_max_roi = -0.7, 0.2 # z축 최대 최소
+        self.x_min_roi, self.x_max_roi = 0.0, 20.0 # x축 최대 최소
+        self.y_min_roi, self.y_max_roi = -4.0, 6.0 # y축 최대 최소
+        self.z_min_roi, self.z_max_roi = -0.7, 0.0 # z축 최대 최소
 
-        self.angle_constraints = 100 # 고려할 삼각형이 가질 수 있는 최대 각도
+        self.angle_constraints = 100 # 고려할 삼각형이 가질 수 있는 최대 각도\
+
+        self.length_thre = 1.0
 
        
     def callback(self, msg):
@@ -54,12 +49,7 @@ class PointCloudProcessor:
             if (self.x_min_roi <= x <= self.x_max_roi and
                 self.y_min_roi<= y <= self.y_max_roi and
                 self.z_min_roi <= z <= self.z_max_roi):
-
-                # 차량 앞부분 포인트 제외 
-                if not (self.x_min_car <= x <= self.x_max_car and
-                        self.y_min_car<= y <= self.y_max_car and
-                        self.z_min_car <= z <= self.z_max_car):
-                    filtered_points.append([x, y, z])
+                filtered_points.append([x, y, z])
 
             
         if len(filtered_points) == 0:
@@ -69,7 +59,7 @@ class PointCloudProcessor:
         cloud = np.array(filtered_points)
 
         # DBSCAN 클러스터링 수행
-        db = DBSCAN(eps=0.8, min_samples=3).fit(cloud[:, :3])
+        db = DBSCAN(eps=0.8, min_samples=5).fit(cloud[:, :3])
         labels = db.labels_
 
         unique_labels = set(labels)
@@ -102,9 +92,9 @@ class PointCloudProcessor:
         # Delaunay Triangulation 실행 (2D - x, y 좌표만 사용)
         if len(centroids_clusters) > 2:
             tri = Delaunay(centroids_clusters[:, :2])
-            self.publish_delaunay_markers(centroids_clusters, tri)
+            # self.publish_delaunay_markers(centroids_clusters, tri)
             
-            # Midpoints of internal edges
+            # Midpoints of internal edges x,y for문 돌면서 일정 가까운 점만 publish
             self.publish_midpoints(centroids_clusters, tri)
         '''
         ex) 
@@ -233,7 +223,7 @@ class PointCloudProcessor:
             marker.pose.orientation.y = 0
             marker.pose.orientation.z = 0
             marker.pose.orientation.w = 1  # Identity quaternion
-            marker.header.frame_id = "velodyne"
+            marker.header.frame_id = "livox_frame"
             marker.header.stamp = rospy.Time.now()
             marker.ns = self.marker_ns_tri
             marker.id = len(marker_array.markers) + 1  # 고유한 ID 설정
@@ -269,6 +259,9 @@ class PointCloudProcessor:
         marker.action = Marker.DELETEALL
         marker_array.markers.append(marker)
         self.pub_midpoints.publish(marker_array)
+        # 
+        path = Float32MultiArray()
+        path_candi = []
 
         # simplex: 삼각형을 이루는 점의 centroids_cluster들의 idx들을 모은 리스트 
         simplices = []
@@ -301,7 +294,7 @@ class PointCloudProcessor:
 
             # 첫 번째 삼각형의 정점
             p1, p2, p3 = [centroids_clusters[idx] for idx in simplex1]
-
+        
             for j in range(orig_idx1 + 1, len(simplices_with_index)):
                 orig_idx2, simplex2 = simplices_with_index[j]
                 if orig_idx2 in processed_pairs or orig_idx1 == orig_idx2:
@@ -327,9 +320,6 @@ class PointCloudProcessor:
                     # 처리된 삼각형 쌍 추가 (각각의 절대 인덱스를 추가)
                     processed_pairs.add(orig_idx1)
                     processed_pairs.add(orig_idx2)
-                    print(f"processed_(tri_1_idx, tri_2_idx): {(orig_idx1, orig_idx2)}")
-                    print("processed_pairs: ", processed_pairs)
-
 
                     # Create a marker for the average midpoint
                     marker = Marker()
@@ -337,7 +327,7 @@ class PointCloudProcessor:
                     marker.pose.orientation.y = 0
                     marker.pose.orientation.z = 0
                     marker.pose.orientation.w = 1  # Identity quaternion
-                    marker.header.frame_id = "velodyne"
+                    marker.header.frame_id = "livox_frame"
                     marker.header.stamp = rospy.Time.now()
                     marker.ns = self.marker_ns_avg
                     marker.id = len(marker_array.markers) + 1  # Unique ID
@@ -354,9 +344,25 @@ class PointCloudProcessor:
 
                     marker_array.markers.append(marker)
 
+                    gradient = np.arctan2(avg_y, avg_x)
+                    path_candi.append([avg_x, avg_y, gradient])
                     # rospy.loginfo("markers: ", marker_array.markers)
 
-                   
+        min_dist_point = None
+        min_dist = float('inf')
+
+        # path_candi 안의 각 원소들에 대해 반복
+        for point in path_candi:
+            x, y, gradient = point
+            dist = (x**2 + y**2)**0.5  # 원점으로부터의 거리 계산
+
+            # 거리 threshold 이상이며 최소 거리 조건을 만족하는 경우 갱신
+            if dist > self.length_thre and dist < min_dist:
+                min_dist = dist
+                min_dist_point = point
+
+        path.data = min_dist_point   
+        self.pub_path.publish(path)
         # Avg midpoint 마커 퍼블리시    
         self.pub_midpoints.publish(marker_array)
         rospy.loginfo(f"Published {len(marker_array.markers)-1} average midpoint markers with topic /delaunay_midpoints")
