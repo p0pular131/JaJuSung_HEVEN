@@ -42,7 +42,7 @@ class Point_to_scan():
         axis_max = 8.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'z'
-        axis_min = -0.7
+        axis_min = -0.9
         axis_max = 0.5
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         # 필터링된 포인트 클라우드를 PointCloud2 메시지로 변환

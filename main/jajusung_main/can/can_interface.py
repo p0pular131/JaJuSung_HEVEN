@@ -19,14 +19,12 @@ class VCUCAN():
         self.db_MorA_msg = self.db.get_message_by_name('ManualAutoMode')
         self.db_Cmd_msg = self.db.get_message_by_name('UPPER_CMD_DATA')
         self.bus = can.interface.Bus(channel='PCAN_USBBUS1', bustype='pcan', bitrate=500000)
-
         rospy.init_node("steering_can_node")
         rospy.Subscriber("/drive", HevenCtrlCmd, self.cmd_callback)
 
         rate = rospy.Rate(50)
         while not rospy.is_shutdown():
             self.update()
-            self.receive_feedback()
             rate.sleep()
 
     def cmd_callback(self, data):
@@ -45,8 +43,6 @@ class VCUCAN():
             MorA_data = self.db_MorA_msg.encode(MorA_dict)
             message = can.Message(arbitration_id=self.db_MorA_msg.frame_id, data=MorA_data)
             self.bus.send(message)
-            self.steering = 0
-
             # Steering angle 메시지 전송
             rospy.loginfo("Curr steer : %d", self.steering)
             steering_dict = {'TargetSteeringAngle': -int(self.steering) * 10000}
@@ -58,7 +54,7 @@ class VCUCAN():
             Cmd_dict = {
                 'cmd_estop_toggle': 0,  # 1 -> estop, 0 -> normal
                 'cmd_motor_speed_limit': 3,  # 3 -> 1x, 2 -> 1/2x, 1 -> 1/10x, 0 -> 1/50x
-                'cmd_motor_torq_value': 0,  # 0 ~ 3200 
+                'cmd_motor_torq_value': self.velocity,  # 0 ~ 3200 
                 'cmd_enable_': 1,  # 1 -> auto, 0 -> manual
                 'cmd_motor_torq_direction': 1,
                 'motor_alive_count': self.motor_alive_count
