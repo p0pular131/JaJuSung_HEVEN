@@ -70,5 +70,12 @@ target_link_libraries(fusion_node
   ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
 )
-
 set_property(TARGET fusion_node PROPERTY CXX_STANDARD 14)
+
+add_executable(deluna_node steer/deluna.cpp)
+target_link_libraries(deluna_node
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
+add_dependencies(deluna_node ${catkin_EXPORTED_TARGETS})
+

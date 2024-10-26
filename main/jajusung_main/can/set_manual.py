@@ -6,7 +6,7 @@ import rospy
 class CanManual():
     def __init__(self):
         # CAN Database
-        self.db = cantools.db.load_file('/home/popular/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/can/auds_drive.dbc')
+        self.db = cantools.db.load_file('/home/heven/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/can/auds_drive.dbc')
         self.db_steer_msg = self.db.get_message_by_name('TargetSteeringAngle')
         self.db_MorA_msg = self.db.get_message_by_name('ManualAutoMode')
         self.db_Cmd_msg = self.db.get_message_by_name('UPPER_CMD_DATA')
@@ -25,7 +25,7 @@ class CanManual():
             with can.interface.Bus(channel='PCAN_USBBUS1', bustype='pcan', bitrate=500000) as bus:
                 message_name = "UPPER_CMD_DATA"
                 # estop 풀고 메뉴얼로 변환시
-                # estop 0으로 변경, tork 0으로 변경, manucal로 변경
+                # estop 0으로 변경, tork 0으로 변경, manual로 변경
                 Cmd_dict = {
                     'cmd_estop_toggle' : 0,          # 1 -> estop, 0 -> normal
                     'cmd_motor_speed_limit' : 3,     # 3 -> 1x, 2 -> 1/2x, 1 -> 1/10x, 0 -> 1/50x

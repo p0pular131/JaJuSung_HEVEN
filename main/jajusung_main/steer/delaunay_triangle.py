@@ -2,6 +2,7 @@
 
 import rospy
 import sensor_msgs.point_cloud2 as pc2
+import lidar_pcl_helper as pcl_helper
 from sensor_msgs.msg import PointCloud2
 import numpy as np
 import math
@@ -11,6 +12,18 @@ from std_msgs.msg import Header, ColorRGBA, Float32MultiArray
 from visualization_msgs.msg import Marker, MarkerArray
 from scipy.spatial import Delaunay
 
+def do_passthrough(pcl_data, filter_axis, axis_min, axis_max):
+    # 축 기반 필터링
+    passthrough = pcl_data.make_passthrough_filter() #pc데이터를 축 기반 필터링을 위한 객체로 변환
+    passthrough.set_filter_field_name(filter_axis) #필터링할 축 지정
+    passthrough.set_filter_limits(axis_min, axis_max) #해당 축에서 필터링 범위 설정
+    return passthrough.filter()
+
+def do_voxel_grid_downsampling(pcl_data, leaf_size):
+    # Voxel Grid Filter를 사용한 다운샘플링
+    vox = pcl_data.make_voxel_grid_filter()
+    vox.set_leaf_size(leaf_size, leaf_size, leaf_size)  # 리프 크기가 클수록 정보가 적게 유지됨
+    return vox.filter()
 
 class PointCloudProcessor:
     def __init__(self):
@@ -30,36 +43,40 @@ class PointCloudProcessor:
         =========================================================================
         '''
         # ROI 범위 설정 
-        self.x_min_roi, self.x_max_roi = 0.0, 20.0 # x축 최대 최소
+        self.x_min_roi, self.x_max_roi = 2.5, 20.0 # x축 최대 최소
         self.y_min_roi, self.y_max_roi = -4.0, 6.0 # y축 최대 최소
-        self.z_min_roi, self.z_max_roi = -0.7, 0.0 # z축 최대 최소
+        self.z_min_roi, self.z_max_roi = -1.2, 0.0 # z축 최대 최소
 
-        self.angle_constraints = 100 # 고려할 삼각형이 가질 수 있는 최대 각도\
+        self.angle_constraints = 120 # 고려할 삼각형이 가질 수 있는 최대 각도\
 
         self.length_thre = 1.0
 
        
     def callback(self, msg):
-        # PointCloud2 메시지를 numpy 배열로 변환
-        filtered_points = []
-        for point in pc2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True):
-            x, y, z = point[0], point[1], point[2]
 
-            # ROI 범위 안에 포인트만 포함
-            if (self.x_min_roi <= x <= self.x_max_roi and
-                self.y_min_roi<= y <= self.y_max_roi and
-                self.z_min_roi <= z <= self.z_max_roi):
-                filtered_points.append([x, y, z])
+        pcl_cloud = pcl_helper.ros_to_pcl(msg)
+        do_voxel_grid_downsampling(pcl_cloud, 0.5)
+        filter_axis = 'y'
+        axis_min = self.y_min_roi
+        axis_max = self.y_max_roi 
+        cloud = do_passthrough(pcl_cloud, filter_axis, axis_min, axis_max)
+        filter_axis = 'x'
+        axis_min = self.x_min_roi 
+        axis_max = self.x_max_roi
+        cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
+        filter_axis = 'z'
+        axis_min = self.z_min_roi
+        axis_max = self.z_max_roi
+        cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
 
+        cloud = np.array(cloud)
             
-        if len(filtered_points) == 0:
+        if len(cloud) == 0:
             rospy.logwarn("No points received")
             return
 
-        cloud = np.array(filtered_points)
-
         # DBSCAN 클러스터링 수행
-        db = DBSCAN(eps=0.8, min_samples=5).fit(cloud[:, :3])
+        db = DBSCAN(eps=0.8, min_samples=3).fit(cloud[:, :3])
         labels = db.labels_
 
         unique_labels = set(labels)
@@ -92,8 +109,6 @@ class PointCloudProcessor:
         # Delaunay Triangulation 실행 (2D - x, y 좌표만 사용)
         if len(centroids_clusters) > 2:
             tri = Delaunay(centroids_clusters[:, :2])
-            # self.publish_delaunay_markers(centroids_clusters, tri)
-            
             # Midpoints of internal edges x,y for문 돌면서 일정 가까운 점만 publish
             self.publish_midpoints(centroids_clusters, tri)
         '''
@@ -189,65 +204,6 @@ class PointCloudProcessor:
                 simplices_with_index = [(idx, simplex) for idx, simplex in simplices_with_index if idx != farthest_simplex_idx[0]]  # 인덱스로 삼각형 제거
 
         return simplices_with_index
-
-
-    def publish_delaunay_markers(self, centroids_clusters, tri):
-        """Publish Delaunay triangulation markers."""
-        # 새로운 마커 생성
-        marker_array = MarkerArray()
-        marker = Marker()
-        marker.id = 0
-        marker.ns = self.marker_ns_tri 
-        marker.action = Marker.DELETEALL
-        marker_array.markers.append(marker)
-        self.pub_triangles.publish(marker_array)
-
-
-        # simplex: [1 0 7], simplex:  [4 6 7], simplex:  [6 1 7] -> 삼각형을 만드는 centroids_clusters들의 idx 
-        for simplex in tri.simplices:
-            # 삼각형의 정점
-            p1 = centroids_clusters[simplex[0]]
-            p2 = centroids_clusters[simplex[1]]
-            p3 = centroids_clusters[simplex[2]]
-
-            # 각도 계산
-            angle_a, angle_b, angle_c = self.calculate_angle(p1, p2, p3)
-
-            # 모든 각이 일정각도 이하인 경우만 추가(path 외부에 생기는 삼각형 제외)
-            if angle_a > self.angle_constraints or angle_b > self.angle_constraints or angle_c > self.angle_constraints:
-                continue
-
-            # 마커 생성
-            marker = Marker()
-            marker.pose.orientation.x = 0
-            marker.pose.orientation.y = 0
-            marker.pose.orientation.z = 0
-            marker.pose.orientation.w = 1  # Identity quaternion
-            marker.header.frame_id = "livox_frame"
-            marker.header.stamp = rospy.Time.now()
-            marker.ns = self.marker_ns_tri
-            marker.id = len(marker_array.markers) + 1  # 고유한 ID 설정
-            marker.type = Marker.LINE_LIST
-            marker.action = Marker.ADD
-            marker.scale.x = 0.01  # 선의 두께
-            marker.color = ColorRGBA(0.0, 1.0, 0.0, 1.0)  # 선 색상 (녹색)
-
-            # 선 추가
-            marker.points.append(Point(p1[0], p1[1], 0))  # p1
-            marker.points.append(Point(p2[0], p2[1], 0))  # p2
-
-            marker.points.append(Point(p2[0], p2[1], 0))  # p2
-            marker.points.append(Point(p3[0], p3[1], 0))  # p3
-
-            marker.points.append(Point(p3[0], p3[1], 0))  # p3
-            marker.points.append(Point(p1[0], p1[1], 0))  # p1
-
-
-            marker_array.markers.append(marker)
-
-        # 새로운 Delaunay 마커를 퍼블리시
-        self.pub_triangles.publish(marker_array)
-        rospy.loginfo(f"Publishing {len(marker_array.markers)-1} Delaunay triangles with topic /delaunay_triangles")
 
     def publish_midpoints(self, centroids_clusters, tri):
         """Publish average midpoints for all pairs of triangles sharing two vertices."""

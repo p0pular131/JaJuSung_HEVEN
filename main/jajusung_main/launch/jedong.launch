@@ -1,0 +1,8 @@
+<launch>
+    <!-- can init -->
+    <node name="canNode" pkg="jajusung_main" type="can_interface.py" output="screen" />
+
+    <!-- publish -->
+    <node name="jedongNode" pkg="jajusung_main" type="main_jeddong.py" output="screen"/>
+
+</launch>

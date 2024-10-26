@@ -34,16 +34,16 @@ class Point_to_scan():
         pcl_cloud = pcl_helper.ros_to_pcl(data)
         # ROI 설정 및 필터링
         filter_axis = 'y'
-        axis_min = -3.0
-        axis_max = 3.0
+        axis_min = -4.0
+        axis_max = 6.0
         cloud = do_passthrough(pcl_cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'x'
-        axis_min = 0.0
-        axis_max = 8.0
+        axis_min = 2.5
+        axis_max = 20.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'z'
-        axis_min = -0.9
-        axis_max = 0.5
+        axis_min = -1.2
+        axis_max = 1.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         # 필터링된 포인트 클라우드를 PointCloud2 메시지로 변환
         roi_cloud = pcl_helper.pcl_to_ros(cloud)

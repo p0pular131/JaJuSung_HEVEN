@@ -44,7 +44,7 @@ def target_callback(msg):
     # ===================================================================================
     '속력 제어: 거리 비례'
     '최대한 빠르게 바꿀 필요있음'
-    v = 8 / 3.6
+    v = 400
     # ===================================================================================
 
     # ===================================================================================
@@ -74,9 +74,9 @@ def target_callback(msg):
     # final drive pub
     cmd_pub = rospy.Publisher('/drive', HevenCtrlCmd, queue_size=10)
     drive_cmd = HevenCtrlCmd()
-    drive_cmd.velocity = 400 
+    drive_cmd.velocity = 0 
     drive_cmd.steering = int(math.degrees(delta))
-    dirve_cmd.brake = 0
+    drive_cmd.brake = 0
     cmd_pub.publish(drive_cmd)
 
 

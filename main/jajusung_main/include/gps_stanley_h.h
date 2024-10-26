@@ -6,8 +6,8 @@
 #include <cmath>
 #include <map>
 #include <sensor_msgs/NavSatFix.h>
-#include <sensor_msgs/Imu.h>
 #include <jajusung_main/HevenCtrlCmd.h>
+
 #include "ros/ros.h"
 
 
@@ -17,7 +17,7 @@ public:
     GPS_STANLEY()
     {
         sub_1 = nh.subscribe<sensor_msgs::NavSatFix>("/ublox_gps/fix", 10, &GPS_STANLEY::chatterCallback_1, this);
-        sub_2 = nh.subscribe<sensor_msgs::Imu>("/imu", 10, &GPS_STANLEY::chatterCallback_2, this);
+        // sub_2 = nh.subscribe<sensor_msgs::Imu>("/imu", 10, &GPS_STANLEY::chatterCallback_2, this);
 
         drive_pub = nh.advertise<jajusung_main::HevenCtrlCmd>("/drive", 10);
         
@@ -27,6 +27,10 @@ public:
     double gps_stanley();
     
     void init_dict();
+
+    double calculate_targ_angle();
+
+    double calculate_gps(const std::pair<double, double>& prev, const std::pair<double, double>& curr);
 
     double find_angle_error(double car_angle, double ref_angle);
 
@@ -41,12 +45,13 @@ public:
         return value * (M_PI/180.0);
     }
     void chatterCallback_1(const sensor_msgs::NavSatFix::ConstPtr& msg_1);
-    void chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2);
+    // void chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2);
 
 
 private:
     ros::NodeHandle nh; 
     ros::Publisher drive_pub;
+    ros::Publisher mode_pub;
     ros::Subscriber sub_1;
     ros::Subscriber sub_2;
     
@@ -58,9 +63,10 @@ private:
     int GPS_TRACKING_SPEED = 7;
     int TRACK_IDX = 0;
 
-    double DISTANCE_SQUARE = 1;
+    double DISTANCE_SQUARE = 0.6;
     std::vector<std::pair<double, double>> TRACK_DICT;
-    std::vector<double> ref_yaw;
+    // std::vector<double> ref_yaw;
+    double ref_yaw;
     int TRACK_NO = 1; // initialized as 1, used to find TRACK_DICT key 
     
     bool GPS_TRACK_END = false;
@@ -77,4 +83,7 @@ private:
     double imu_yaw = 0;
     double imu_yaw_rate = 0;
     double imu_yaw_modified = 0;
+
+    std::pair<double,double> prev_position;
+    double prev_car_angle;
 };

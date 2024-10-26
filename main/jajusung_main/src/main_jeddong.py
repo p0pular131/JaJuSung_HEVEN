@@ -26,8 +26,8 @@ class Jeddong():
         self.vel_pub = rospy.Publisher("/drive",HevenCtrlCmd)
         self.braking = False
 
-        self.braking_dixtance = 10.0
-        self.point_count_threshold = 30
+        self.braking_dixtance = 15.0
+        self.point_count_threshold = 5
 
     def lidar_callback(self, data):
         # PointCloud2 메시지를 PCL 포맷으로 변환
@@ -38,23 +38,24 @@ class Jeddong():
         axis_max = 0.5
         cloud = do_passthrough(pcl_cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'x'
-        axis_min = 0.0
-        axis_max = 4.0
+        axis_min = 2.0
+        axis_max = 20.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'z'
-        axis_min = -0.9
+        axis_min = -1.1
         axis_max = 0.5
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
 
-        points_within_distance = [point for point in cloud if point[0] <= self.brake_distance_threshold]
+        points_within_distance = [point for point in cloud if point[0] <= self.braking_dixtance]
         
         if len(points_within_distance) >= self.point_count_threshold :
             self.braking = True
+            # print(points_within_distance)
 
         m = HevenCtrlCmd()
-        m.velocity = 500
-        m.steering = 0
+        m.velocity = 1000
         m.brake = 0
+        m.steering = 0
         if(self.braking) :
             m.brake = 1
             m.velocity = 0
