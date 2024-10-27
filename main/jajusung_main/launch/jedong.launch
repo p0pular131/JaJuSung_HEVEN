@@ -5,4 +5,8 @@
     <!-- publish -->
     <node name="jedongNode" pkg="jajusung_main" type="main_jeddong.py" output="screen"/>
 
+    <node name="stanleyNode" pkg="jajusung_main" type="deluna_stanley.py" output="screen"/>
+
+    <node name="pathNode" pkg="jajusung_main" type="delaunay_triangle.py" output="screen"/>
+
 </launch>

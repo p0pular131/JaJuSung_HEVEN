@@ -23,11 +23,15 @@ class Jeddong():
         rospy.init_node("Fusion_node", anonymous=False)
         # LiDAR 데이터 구독
         self.lidar_sub = rospy.Subscriber("/livox/lidar", PointCloud2, self.lidar_callback)  #pc메시지 구독, 수신되면 lidar_callback함수 실행
+        self.stanley_sub = rospy.Subscriber("/drive_stanley", HevenCtrlCmd, self.stanley_cb)
         self.vel_pub = rospy.Publisher("/drive",HevenCtrlCmd)
         self.braking = False
-
+        self.stanley_cmd = HevenCtrlCmd()
         self.braking_dixtance = 15.0
         self.point_count_threshold = 5
+
+    def stanley_cb(self, data) :
+        self.stanley_cmd = data
 
     def lidar_callback(self, data):
         # PointCloud2 메시지를 PCL 포맷으로 변환
@@ -52,10 +56,7 @@ class Jeddong():
             self.braking = True
             # print(points_within_distance)
 
-        m = HevenCtrlCmd()
-        m.velocity = 1000
-        m.brake = 0
-        m.steering = 0
+        m = self.stanley_cmd
         if(self.braking) :
             m.brake = 1
             m.velocity = 0

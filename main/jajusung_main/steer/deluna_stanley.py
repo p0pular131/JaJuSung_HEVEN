@@ -72,9 +72,9 @@ def target_callback(msg):
     print("target_yaw: ",target_yaw)
 
     # final drive pub
-    cmd_pub = rospy.Publisher('/drive', HevenCtrlCmd, queue_size=10)
+    cmd_pub = rospy.Publisher('/drive_stanley', HevenCtrlCmd, queue_size=10)
     drive_cmd = HevenCtrlCmd()
-    drive_cmd.velocity = 0 
+    drive_cmd.velocity = 500 
     drive_cmd.steering = int(math.degrees(delta))
     drive_cmd.brake = 0
     cmd_pub.publish(drive_cmd)
