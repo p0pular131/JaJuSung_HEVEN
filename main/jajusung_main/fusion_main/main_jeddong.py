@@ -27,8 +27,8 @@ class Jeddong():
         self.vel_pub = rospy.Publisher("/drive",HevenCtrlCmd)
         self.braking = False
         self.stanley_cmd = HevenCtrlCmd()
-        self.braking_dixtance = 15.0
-        self.point_count_threshold = 5
+        self.braking_dixtance = 10.0
+        self.point_count_threshold = 4
 
     def stanley_cb(self, data) :
         self.stanley_cmd = data
@@ -43,7 +43,7 @@ class Jeddong():
         cloud = do_passthrough(pcl_cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'x'
         axis_min = 2.0
-        axis_max = 20.0
+        axis_max = 15.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'z'
         axis_min = -1.1

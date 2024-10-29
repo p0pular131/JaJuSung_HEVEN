@@ -6,14 +6,8 @@ from std_msgs.msg import Float32MultiArray
 from jajusung_main.msg import HevenCtrlCmd
 
 # Initialize constants
-K_v_dist = 1.0  # velocity결정 / diatance_error 비례상수
 k_stanley = 0.2 # steering결정 / target_yaw 비례상수
 
-# Speed and steering angle limits
-MIN_SPEED = 1.38889  # 5 km/h in m/s
-MAX_SPEED = 6.944  # 25 km/h in m/s
-MIN_STEERING = -0.488  # -28 degrees in radians
-MAX_STEERING = 0.488  # 28 degrees in radians
 
 # Current state of the vehicle (always (0,0,pi/2))
 current_pose = {'x': 0.0, 'y': 0.0, 'yaw': 0}
@@ -42,8 +36,7 @@ def target_callback(msg):
 
 
     # ===================================================================================
-    '속력 제어: 거리 비례'
-    '최대한 빠르게 바꿀 필요있음'
+    # torc 
     v = 400
     # ===================================================================================
 
@@ -56,14 +49,6 @@ def target_callback(msg):
     delta = heading_error + math.atan2(k_stanley * lateral_error, v)  # Stanley control 공식
     # ===================================================================================
 
-    # Clamp the steering angle to the defined limits
-    delta = max(MIN_STEERING + math.pi/2, min(MAX_STEERING + math.pi/2, delta + math.pi/2))
-
-    delta -= math.pi/2
-
-    # Clamp velocity to defined limits
-    v = max(MIN_SPEED, min(MAX_SPEED, v))
-    
     # Print debugging information
     print("delta:", math.degrees(delta))
     print("velocity:", v)
@@ -74,7 +59,7 @@ def target_callback(msg):
     # final drive pub
     cmd_pub = rospy.Publisher('/drive_stanley', HevenCtrlCmd, queue_size=10)
     drive_cmd = HevenCtrlCmd()
-    drive_cmd.velocity = 500 
+    drive_cmd.velocity = v 
     drive_cmd.steering = int(math.degrees(delta))
     drive_cmd.brake = 0
     cmd_pub.publish(drive_cmd)

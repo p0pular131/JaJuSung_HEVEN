@@ -5,16 +5,22 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/search/kdtree.h>  
+#include <pcl/segmentation/extract_clusters.h>
 #include <pcl/point_types.h>
 #include <opencv2/opencv.hpp>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <std_msgs/Header.h>
 #include <math.h>
+#include <unordered_set>
+#include <functional>
+
 class Fusion {
 public:
     double first_image_time = 0.0, first_scan_time = 0.0;
     double current_image_time = 0.0, current_scan_time = 0.0;
     double time_offset = 0.0;
+    double lane_width = 6.0;
     Fusion() {
         // ROS 노드 초기화
         ros::NodeHandle nh;
@@ -25,6 +31,7 @@ public:
         roi_pub_ = nh.advertise<sensor_msgs::PointCloud2>("/roi_pointcloud", 10);
         blue_pub_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_blue", 10);
         yellow_pub_ = nh.advertise<sensor_msgs::PointCloud2>("/cloud_yellow", 10);
+        path_pub_ = nh.advertise<sensor_msgs::PointCloud2>("/midpoint_path", 10);
 
         blue_cone_points_.clear();
         yellow_cone_points_.clear();
@@ -107,10 +114,10 @@ public:
 
         double diff_time = fabs(current_image_time - current_scan_time - time_offset);
 
-        if( diff_time > 0.2) {
-            ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
-            return;
-        }
+        // if( diff_time > 0.2) {
+        //     ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
+        //     return;
+        // }
         pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::fromROSMsg(*msg, *pcl_cloud);
 
@@ -125,18 +132,18 @@ public:
         pcl::PassThrough<pcl::PointXYZ> pass;
         pass.setInputCloud(filtered_cloud);
         pass.setFilterFieldName("x");
-        pass.setFilterLimits(0.0, 10.0);
+        pass.setFilterLimits(2.5, 13.0);
         pass.filter(*filtered_cloud);
         pass.setFilterFieldName("y");
-        pass.setFilterLimits(-3.0, 3.0);
+        pass.setFilterLimits(-6.0, 6.0);
         pass.filter(*filtered_cloud);
         pass.setFilterFieldName("z");
-        pass.setFilterLimits(-0.8, 1.0);
+        pass.setFilterLimits(-1.1, 0.0);
         pass.filter(*filtered_cloud);
 
         sensor_msgs::PointCloud2 output;
         pcl::toROSMsg(*filtered_cloud, output);
-        output.header.frame_id = "velodyne";
+        output.header.frame_id = "livox_frame";
         roi_pub_.publish(output);
         processPointCloud(filtered_cloud);
     }
@@ -231,41 +238,222 @@ public:
         // cv::imshow("Calib Result Right", right_image_);
         // cv::moveWindow("Calib Result Right", 650, 550);  
 
-        cv::waitKey(1);
+        // cv::waitKey(1);
 
-        publishClouds();
+        processMidPoint();
     }
 
-    void publishClouds() {
-        std_msgs::Header header;
-        header.stamp = ros::Time::now();
-        header.frame_id = "livox_frame";
+/*
+===================================================================================================
+================================== Calculate Midpoints ============================================
+===================================================================================================
+*/
 
-        if (!blue_cone_points_.empty()) {
-            pcl::PointCloud<pcl::PointXYZ> blue_cloud_pcl;
-            blue_cloud_pcl.points.reserve(blue_cone_points_.size());  // 크기 설정
-            blue_cloud_pcl.points.insert(blue_cloud_pcl.points.end(), blue_cone_points_.begin(), blue_cone_points_.end());  // 데이터를 복사
-            sensor_msgs::PointCloud2 blue_cloud;
-            pcl::toROSMsg(blue_cloud_pcl, blue_cloud);  // 변환된 pcl::PointCloud를 사용
-            blue_cloud.header = header;
-            blue_pub_.publish(blue_cloud);
+    void processMidPoint() {
+        // 클러스터링 및 중점 계산 후 퍼블리시
+        std::vector<pcl::PointXYZ> blue_centroids = clusterCones(blue_cone_points_, true);
+        std::vector<pcl::PointXYZ> yellow_centroids = clusterCones(yellow_cone_points_, false);
+
+        // 각 파란색 라바콘에 대해 가장 가까운 노란색 라바콘을 찾고 중점을 생성
+        std::vector<pcl::PointXYZ> midpoints;
+
+        for (const auto& blue : blue_centroids) {
+            pcl::PointXYZ nearest_yellow;
+            if (findNearestCone(blue, yellow_centroids, nearest_yellow, lane_width)) {
+                pcl::PointXYZ midpoint = calculateMidPoint(blue, nearest_yellow);
+                    midpoints.push_back(midpoint);
+            } else {
+                // 유효한 쌍이 없는 경우 오른쪽에 중점 생성
+                pcl::PointXYZ adjacent_blue;
+                if (findAdjacentCone(blue, blue_centroids, adjacent_blue)) {
+                    pcl::PointXYZ midpoint = calculatePerpendicularPoint(blue, adjacent_blue, lane_width / 2.0, true);
+                        midpoints.push_back(midpoint);
+                }
+            }
         }
 
-        if (!yellow_cone_points_.empty()) {
-            pcl::PointCloud<pcl::PointXYZ> yellow_cloud_pcl;
-            yellow_cloud_pcl.points.reserve(yellow_cone_points_.size());  // 크기 설정
-            yellow_cloud_pcl.points.insert(yellow_cloud_pcl.points.end(), yellow_cone_points_.begin(), yellow_cone_points_.end());  // 데이터를 복사
-            sensor_msgs::PointCloud2 yellow_cloud;
-            pcl::toROSMsg(yellow_cloud_pcl, yellow_cloud);  // 변환된 pcl::PointCloud를 사용
-            yellow_cloud.header = header;
-            yellow_pub_.publish(yellow_cloud);
+        // 남은 노란색 라바콘에 대해 인접한 같은 색의 라바콘을 활용하여 왼쪽에 중점 생성
+        for (const auto& yellow : yellow_centroids) {
+            if (!isPaired(yellow, midpoints)) {
+                pcl::PointXYZ adjacent_yellow;
+                if (findAdjacentCone(yellow, yellow_centroids, adjacent_yellow)) {
+                    pcl::PointXYZ midpoint = calculatePerpendicularPoint(yellow, adjacent_yellow, lane_width / 2.0, false);
+                        midpoints.push_back(midpoint);
+                }
+            }
         }
+
+        // 중점 결과 퍼블리시
+        publishMidpoints(midpoints);
+        publishClusters(blue_centroids, yellow_centroids);
     }
+
+    std::vector<pcl::PointXYZ> clusterCones(const std::vector<pcl::PointXYZ>& points, bool is_blue) {
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        cloud->points.reserve(points.size());  // 필요한 크기만큼 미리 할당
+        std::copy(points.begin(), points.end(), std::back_inserter(cloud->points)); // copy 사용
+
+        pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+        std::vector<pcl::PointIndices> cluster_indices;
+        pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+        ec.setClusterTolerance(0.5);
+        ec.setMinClusterSize(3);
+        ec.setMaxClusterSize(100);
+        ec.setSearchMethod(tree);
+        ec.setInputCloud(cloud);
+        ec.extract(cluster_indices);
+
+        std::vector<pcl::PointXYZ> centroids;
+        for (const auto& indices : cluster_indices) {
+            pcl::PointXYZ centroid;
+            for (const auto& idx : indices.indices) {
+                centroid.x += cloud->points[idx].x;
+                centroid.y += cloud->points[idx].y;
+                centroid.z += cloud->points[idx].z;
+            }
+            centroid.x /= indices.indices.size();
+            centroid.y /= indices.indices.size();
+            centroid.z /= indices.indices.size();
+            if(is_blue == false) { // yellow 
+                if(centroid.y > 1.0) {
+                    continue;
+                }
+            }
+            else if(is_blue == true) { // blue
+                if(centroid.y < -1.0) {
+                    continue;
+                }
+            }
+            centroids.push_back(centroid);
+        }
+        return centroids;
+    }
+
+    bool findNearestCone(const pcl::PointXYZ& cone, const std::vector<pcl::PointXYZ>& targets, pcl::PointXYZ& nearest, double max_distance) {
+        double min_distance = max_distance;
+        bool found = false;
+        for (const auto& target : targets) {
+            double distance = calculateDistance(cone, target);
+            if (distance < min_distance) {
+                min_distance = distance;
+                nearest = target;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    bool findAdjacentCone(const pcl::PointXYZ& ref_point, const std::vector<pcl::PointXYZ>& centroids, pcl::PointXYZ& adjacent_point) {
+        double min_distance = std::numeric_limits<double>::max();
+        bool found = false;
+
+        for (const auto& point : centroids) {
+            if (point.x == ref_point.x && point.y == ref_point.y && point.z == ref_point.z) {
+                continue; // 동일한 점은 제외
+            }
+
+            double distance = std::sqrt(std::pow(point.x - ref_point.x, 2) + std::pow(point.y - ref_point.y, 2));
+            if (distance < min_distance) {
+                min_distance = distance;
+                adjacent_point = point;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+
+    pcl::PointXYZ calculateMidPoint(const pcl::PointXYZ& p1, const pcl::PointXYZ& p2) {
+        pcl::PointXYZ mid;
+        mid.x = (p1.x + p2.x) / 2;
+        mid.y = (p1.y + p2.y) / 2;
+        mid.z = (p1.z + p2.z) / 2;
+        return mid;
+    }
+
+    pcl::PointXYZ calculatePerpendicularPoint(const pcl::PointXYZ& p1, const pcl::PointXYZ& p2, double distance, bool isBlueCone) {
+        // 항상 p1.x < p2.x가 되도록 두 점을 정렬하여 일관된 기울기 계산
+        const pcl::PointXYZ& point_a = (p1.x > p2.x) ? p1 : p2;
+        const pcl::PointXYZ& point_b = (p1.x > p2.x) ? p2 : p1;
+
+        double angle = atan2(point_b.y - point_a.y, point_b.x - point_a.x) + (isBlueCone ? M_PI / 2 : -M_PI / 2);
+        pcl::PointXYZ perpendicular_point;
+        perpendicular_point.x = point_a.x + distance * cos(angle);
+        perpendicular_point.y = point_a.y + distance * sin(angle);
+        perpendicular_point.z = 0;
+
+        return perpendicular_point;
+    }
+
+    double calculateDistance(const pcl::PointXYZ& p1, const pcl::PointXYZ& p2) {
+        return std::sqrt(std::pow(p2.x - p1.x, 2) + std::pow(p2.y - p1.y, 2));
+    }
+
+    bool isPaired(const pcl::PointXYZ& cone, const std::vector<pcl::PointXYZ>& midpoints) {
+        for (const auto& midpoint : midpoints) {
+            if (calculateDistance(cone, midpoint) < 1.0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    struct PointHash {
+        std::size_t operator()(const pcl::PointXYZ& point) const {
+            return std::hash<float>()(point.x) ^ std::hash<float>()(point.y) ^ std::hash<float>()(point.z);
+        }
+    };
+
+    void publishMidpoints(const std::vector<pcl::PointXYZ>& midpoints) {
+        pcl::PointCloud<pcl::PointXYZ> midpoint_cloud;
+        midpoint_cloud.points.reserve(midpoints.size()); // 공간 예약
+        std::copy(midpoints.begin(), midpoints.end(), std::back_inserter(midpoint_cloud.points)); // copy 사용
+
+        sensor_msgs::PointCloud2 midpoint_msg;
+        pcl::toROSMsg(midpoint_cloud, midpoint_msg);
+        midpoint_msg.header.frame_id = "livox_frame";
+        midpoint_msg.header.stamp = ros::Time::now();
+        path_pub_.publish(midpoint_msg);
+    }
+
+    void publishClusters(const std::vector<pcl::PointXYZ>& blue_centroids, const std::vector<pcl::PointXYZ>& yellow_centroids) {
+        pcl::PointCloud<pcl::PointXYZ> blue_cluster_cloud;
+        pcl::PointCloud<pcl::PointXYZ> yellow_cluster_cloud;
+
+        // blue_centroids의 각 포인트를 blue_cluster_cloud.points에 추가
+        blue_cluster_cloud.points.reserve(blue_centroids.size());
+        for (const auto& point : blue_centroids) {
+            blue_cluster_cloud.points.push_back(point);
+        }
+
+        // yellow_centroids의 각 포인트를 yellow_cluster_cloud.points에 추가
+        yellow_cluster_cloud.points.reserve(yellow_centroids.size());
+        for (const auto& point : yellow_centroids) {
+            yellow_cluster_cloud.points.push_back(point);
+        } 
+
+        sensor_msgs::PointCloud2 blue_cluster_msg;
+        sensor_msgs::PointCloud2 yellow_cluster_msg;
+
+        pcl::toROSMsg(blue_cluster_cloud, blue_cluster_msg);
+        pcl::toROSMsg(yellow_cluster_cloud, yellow_cluster_msg);
+
+        blue_cluster_msg.header.frame_id = "livox_frame";
+        yellow_cluster_msg.header.frame_id = "livox_frame";
+
+        blue_cluster_msg.header.stamp = ros::Time::now();
+        yellow_cluster_msg.header.stamp = ros::Time::now();
+
+        blue_pub_.publish(blue_cluster_msg);
+        yellow_pub_.publish(yellow_cluster_msg);
+    }
+
 
 
 private:
     ros::Subscriber left_image_sub_, right_image_sub_, lidar_sub_, cone_sub_;
-    ros::Publisher roi_pub_, blue_pub_, yellow_pub_;
+    ros::Publisher roi_pub_, blue_pub_, yellow_pub_, path_pub_;
 
     cv::Mat left_image_, right_image_, cone_seg_, cone_seg_left, cone_seg_right;
     cv::Mat intrinsic_matrix_left, intrinsic_matrix_right, extrinsic_matrix_left, extrinsic_matrix_right;

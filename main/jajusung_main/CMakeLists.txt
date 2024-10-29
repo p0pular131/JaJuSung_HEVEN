@@ -58,19 +58,25 @@ target_link_libraries(gps_follower
   ${catkin_LIBRARIES}
 )
 
-add_executable(lane_stanley src/lane_stanley.cpp)
-add_dependencies(lane_stanley ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(lane_stanley 
-  ${catkin_LIBRARIES}
-)
-
-add_executable(fusion_node src/sensor_fusion.cpp)
+add_executable(fusion_node fusion_main/sensor_fusion.cpp)
 target_link_libraries(fusion_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
 )
 set_property(TARGET fusion_node PROPERTY CXX_STANDARD 14)
+
+add_executable(fusion_stanley fusion_main/stanley_fusion.cpp)
+target_link_libraries(fusion_stanley
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
+
+add_executable(jedong_stanley fusion_main/jedong_stanley.cpp)
+target_link_libraries(jedong_stanley
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
 
 add_executable(deluna_node steer/deluna.cpp)
 target_link_libraries(deluna_node

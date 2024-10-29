@@ -1,12 +1,14 @@
 <launch>
     <!-- can init -->
-    <node name="canNode" pkg="jajusung_main" type="can_interface.py" output="screen" />
+    <!-- <node name="canNode" pkg="jajusung_main" type="can_interface.py" output="screen" /> -->
 
     <!-- publish -->
     <node name="jedongNode" pkg="jajusung_main" type="main_jeddong.py" output="screen"/>
 
-    <node name="stanleyNode" pkg="jajusung_main" type="deluna_stanley.py" output="screen"/>
+    <!-- Fusion node 실행 -->
+    <node pkg="jajusung_main" type="fusion_node" name="fusion_node" output="screen" />
 
-    <node name="pathNode" pkg="jajusung_main" type="delaunay_triangle.py" output="screen"/>
+    <!-- Fusion stanley 실행 -->
+    <node pkg="jajusung_main" type="jedong_stanley" name="jedong_stanley" output="screen" />
 
 </launch>
