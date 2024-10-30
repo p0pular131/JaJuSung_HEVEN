@@ -65,8 +65,8 @@ class VCUCAN():
             self.motor_alive_count = (self.motor_alive_count + 1) % 256
 
             self.mutex_lock = False
-            rospy.loginfo("Send message.")
             rospy.loginfo("Curr vel : %d",self.velocity)
+            rospy.loginfo("Send message.")
 
 
 if __name__ == "__main__":

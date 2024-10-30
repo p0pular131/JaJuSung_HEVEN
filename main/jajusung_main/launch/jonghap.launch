@@ -1,9 +1,8 @@
 <launch>
     <rosparam file="$(find jajusung_main)/config/params.yaml" command="load"/>
 
-    <!-- can init -->
-    <!-- <node name="canNode" pkg="jajusung_main" type="can_interface.py" output="screen" /> -->
-
+    <node name="mainNode" pkg="jajusung_main" type="main_jonghap.py" output="screen"/>
+    
     <!-- Fusion node 실행 -->
     <node pkg="jajusung_main" type="fusion_node" name="fusion_node" output="screen" />
 

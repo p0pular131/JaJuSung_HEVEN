@@ -1,0 +1,14 @@
+<launch>
+    <rosparam file="$(find jajusung_main)/config/params.yaml" command="load"/>
+
+    <node name="mainNode" pkg="jajusung_main" type="main_johyang.py" output="screen"/>
+
+    <!-- Fusion node 실행 -->
+    <node pkg="jajusung_main" type="fusion_johyang" name="fusion_johyang" output="screen" />
+
+    <!-- Fusion stanley 실행 -->
+    <node pkg="jajusung_main" type="fusion_stanley" name="fusion_stanley" output="screen" />
+
+    <!-- RViz 실행 및 .rviz 파일 로드 -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find jajusung_main)/config/fusion_visualization.rviz" output="screen" />
+</launch>

@@ -48,9 +48,9 @@ public:
                                                         0.10725113,  0.0719368,  -0.99162608, -0.26748812,
                                                         0.93992685,  0.31778024,  0.12471264,  0.54786644);
 
-        extrinsic_matrix_right = (cv::Mat_<double>(3, 4) << -0.38588106, -0.92234947, -0.01916385, -0.11465837,
-                                                0.07988828, -0.01271354, -0.99672274,  0.03751879,
-                                                0.91908306, -0.3861474,  0.07859082,  0.21283645);
+        extrinsic_matrix_right = (cv::Mat_<double>(3, 4) <<  -0.2220268,  -0.97407361, -0.04341313, -0.22325282,
+                                                              0.05404672,  0.03216119, -0.99802035,  0.03659065,
+                                                              0.9735415,  -0.2239336 ,  0.04550483,  0.16892997);
 
     }
 
@@ -251,8 +251,8 @@ public:
 
     void processMidPoint() {
         // 클러스터링 및 중점 계산 후 퍼블리시
-        std::vector<pcl::PointXYZ> blue_centroids = clusterCones(blue_cone_points_, true);
-        std::vector<pcl::PointXYZ> yellow_centroids = clusterCones(yellow_cone_points_, false);
+        std::vector<pcl::PointXYZ> blue_centroids = clusterCones(blue_cone_points_, 1);
+        std::vector<pcl::PointXYZ> yellow_centroids = clusterCones(yellow_cone_points_, 0);
 
         // 각 파란색 라바콘에 대해 가장 가까운 노란색 라바콘을 찾고 중점을 생성
         std::vector<pcl::PointXYZ> midpoints;
@@ -288,7 +288,7 @@ public:
         publishClusters(blue_centroids, yellow_centroids);
     }
 
-    std::vector<pcl::PointXYZ> clusterCones(const std::vector<pcl::PointXYZ>& points, bool is_blue) {
+    std::vector<pcl::PointXYZ> clusterCones(const std::vector<pcl::PointXYZ>& points, int is_blue) {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
         cloud->points.reserve(points.size());  // 필요한 크기만큼 미리 할당
         std::copy(points.begin(), points.end(), std::back_inserter(cloud->points)); // copy 사용
@@ -314,12 +314,12 @@ public:
             centroid.x /= indices.indices.size();
             centroid.y /= indices.indices.size();
             centroid.z /= indices.indices.size();
-            if(is_blue == false) { // yellow 
+            if(is_blue == 0) { // yellow 
                 if(centroid.y > 1.0) {
                     continue;
                 }
             }
-            else if(is_blue == true) { // blue
+            else if(is_blue == 1) { // blue
                 if(centroid.y < -1.0) {
                     continue;
                 }
@@ -457,7 +457,7 @@ private:
 
     cv::Mat left_image_, right_image_, cone_seg_, cone_seg_left, cone_seg_right;
     cv::Mat intrinsic_matrix_left, intrinsic_matrix_right, extrinsic_matrix_left, extrinsic_matrix_right;
-    std::vector<pcl::PointXYZ> blue_cone_points_, yellow_cone_points_;
+    std::vector<pcl::PointXYZ> blue_cone_points_, yellow_cone_points_, all_points;
 };
 
 int main(int argc, char** argv) {
