@@ -39,15 +39,15 @@ public:
         // Stanley 제어기를 통한 조향각 계산
         double delta = calculateSteeringAngle(closest_point);
         delta = delta * 180 / M_PI;  // rad2deg
-        int delta_int = static_cast<int>(delta); // int casting
+        // int delta_int = static_cast<int>(delta); // int casting
 
-        if(delta_int > 35) delta_int = 35;
-        else if(delta_int < -35) delta_int = -35;
+        // if(delta_int > 35) delta_int = 35;
+        // else if(delta_int < -35) delta_int = -35;
 
         // 조향각을 포함한 제어 명령 퍼블리시
         jajusung_main::HevenCtrlCmd cmd_vel;
         cmd_vel.velocity = trc;
-        cmd_vel.steering = delta_int;
+        cmd_vel.steering = delta;
         control_pub_.publish(cmd_vel);
     }
 
@@ -65,8 +65,8 @@ private:
     ros::Subscriber path_sub_;
     ros::Publisher control_pub_;
 
-    double k_ = 0.1;  // Stanley 제어기 이득
-    int trc = 500;  // 토크
+    double k_ = 0.05;  // Stanley 제어기 이득
+    int trc = 400;  // 토크
 };
 
 int main(int argc, char** argv) {

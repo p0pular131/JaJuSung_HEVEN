@@ -45,10 +45,11 @@ class VCUCAN():
             self.bus.send(message)
             # Steering angle 메시지 전송
             rospy.loginfo("Curr steer : %d", self.steering)
-            steering_dict = {'TargetSteeringAngle': -int(self.steering) * 10000}
+            steering_dict = {'TargetSteeringAngle': -self.steering * 10000}
             steer_data = self.db_steer_msg.encode(steering_dict)
             message = can.Message(arbitration_id=self.db_steer_msg.frame_id, data=steer_data)
             self.bus.send(message)
+            self.velocity = 350
             # ========================= vcu can ======================================
             Cmd_dict = {
                 'cmd_estop_toggle': self.brake,  # 1 -> estop, 0 -> normal
@@ -65,6 +66,7 @@ class VCUCAN():
 
             self.mutex_lock = False
             rospy.loginfo("Send message.")
+            rospy.loginfo("Curr vel : %d",self.velocity)
 
 
 if __name__ == "__main__":

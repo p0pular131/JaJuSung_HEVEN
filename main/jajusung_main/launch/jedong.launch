@@ -11,4 +11,7 @@
     <!-- Fusion stanley 실행 -->
     <node pkg="jajusung_main" type="jedong_stanley" name="jedong_stanley" output="screen" />
 
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find jajusung_main)/config/fusion_visualization.rviz" output="screen" />
+
+
 </launch>

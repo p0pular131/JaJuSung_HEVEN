@@ -20,7 +20,7 @@ public:
     double first_image_time = 0.0, first_scan_time = 0.0;
     double current_image_time = 0.0, current_scan_time = 0.0;
     double time_offset = 0.0;
-    double lane_width = 6.0;
+    double lane_width = 4.0;
     Fusion() {
         // ROS 노드 초기화
         ros::NodeHandle nh;

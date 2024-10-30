@@ -44,6 +44,7 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
+
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
@@ -52,7 +53,15 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
-add_executable(gps_follower src/gps_stanley_main.cpp src/gps_stanley.cpp)
+# add_executable(gps_follower src/gps_stanley_main.cpp src/gps_stanley.cpp)
+# add_dependencies(gps_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} # #{catkin_EXPORTED_TARGETS})
+#target_link_libraries(gps_follower 
+ # ${catkin_LIBRARIES}
+#)
+
+
+
+add_executable(gps_follower src/gps_stanley_main_usingekf.cpp src/gps_stanley_usingekf.cpp)
 add_dependencies(gps_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(gps_follower 
   ${catkin_LIBRARIES}
