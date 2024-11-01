@@ -20,7 +20,7 @@ public:
     double first_image_time = 0.0, first_scan_time = 0.0;
     double current_image_time = 0.0, current_scan_time = 0.0;
     double time_offset = 0.0;
-    double lane_width = 4.0;
+    double lane_width = 4.1;
     Fusion() {
         // ROS 노드 초기화
         ros::NodeHandle nh;
@@ -114,10 +114,10 @@ public:
 
         double diff_time = fabs(current_image_time - current_scan_time - time_offset);
 
-        // if( diff_time > 0.2) {
-        //     ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
-        //     return;
-        // }
+        if( diff_time > 0.2) {
+            ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
+            return;
+        }
         pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::fromROSMsg(*msg, *pcl_cloud);
 
@@ -132,7 +132,7 @@ public:
         pcl::PassThrough<pcl::PointXYZ> pass;
         pass.setInputCloud(filtered_cloud);
         pass.setFilterFieldName("x");
-        pass.setFilterLimits(2.5, 13.0);
+        pass.setFilterLimits(2.5, 10.0);
         pass.filter(*filtered_cloud);
         pass.setFilterFieldName("y");
         pass.setFilterLimits(-6.0, 6.0);
@@ -251,8 +251,8 @@ public:
 
     void processMidPoint() {
         // 클러스터링 및 중점 계산 후 퍼블리시
-        std::vector<pcl::PointXYZ> blue_centroids = clusterCones(blue_cone_points_, 1);
-        std::vector<pcl::PointXYZ> yellow_centroids = clusterCones(yellow_cone_points_, 0);
+        std::vector<pcl::PointXYZ> blue_centroids = clusterCones(blue_cone_points_, true);
+        std::vector<pcl::PointXYZ> yellow_centroids = clusterCones(yellow_cone_points_, false);
 
         // 각 파란색 라바콘에 대해 가장 가까운 노란색 라바콘을 찾고 중점을 생성
         std::vector<pcl::PointXYZ> midpoints;
@@ -288,7 +288,7 @@ public:
         publishClusters(blue_centroids, yellow_centroids);
     }
 
-    std::vector<pcl::PointXYZ> clusterCones(const std::vector<pcl::PointXYZ>& points, int is_blue) {
+    std::vector<pcl::PointXYZ> clusterCones(const std::vector<pcl::PointXYZ>& points, bool is_blue) {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
         cloud->points.reserve(points.size());  // 필요한 크기만큼 미리 할당
         std::copy(points.begin(), points.end(), std::back_inserter(cloud->points)); // copy 사용
@@ -314,12 +314,12 @@ public:
             centroid.x /= indices.indices.size();
             centroid.y /= indices.indices.size();
             centroid.z /= indices.indices.size();
-            if(is_blue == 0) { // yellow 
+            if(is_blue == false) { // yellow 
                 if(centroid.y > 1.0) {
                     continue;
                 }
             }
-            else if(is_blue == 1) { // blue
+            else if(is_blue == true) { // blue
                 if(centroid.y < -1.0) {
                     continue;
                 }
@@ -457,7 +457,7 @@ private:
 
     cv::Mat left_image_, right_image_, cone_seg_, cone_seg_left, cone_seg_right;
     cv::Mat intrinsic_matrix_left, intrinsic_matrix_right, extrinsic_matrix_left, extrinsic_matrix_right;
-    std::vector<pcl::PointXYZ> blue_cone_points_, yellow_cone_points_, all_points;
+    std::vector<pcl::PointXYZ> blue_cone_points_, yellow_cone_points_;
 };
 
 int main(int argc, char** argv) {

@@ -14,6 +14,15 @@ class EKF:
         self.ekf.P *= 1000.  # 초기 불확실성
         self.ekf.R = np.array([[0.1]])  # 측정 잡음 공분산
         self.ekf.Q = np.eye(3) * 0.01  # 프로세스 잡음 공분산
+        self.initialized = False
+
+
+    def initialize_yaw(self, orientation):
+        # 오리엔테이션으로 초기 yaw 값 설정
+        yaw = np.arctan2(2 * (orientation.z * orientation.w + orientation.x * orientation.y),
+                         1 - 2 * (orientation.y ** 2 + orientation.z ** 2))
+        self.ekf.x[0] = yaw  # yaw 초기화
+        self.initialized = True
 
     def predict(self, dt, angular_velocity):
         # 상태 예측 (동역학 모델)
@@ -61,15 +70,23 @@ class EKF:
         return self.ekf.x[0]  # yaw 값 반환
 
 def imu_callback(msg, ekf):
+    if not ekf.initialized:
+        # 초기 yaw 설정
+        ekf.initialize_yaw(msg.orientation)
+    else:
     # IMU로부터 각 속도를 가져옴
-    angular_velocity = msg.angular_velocity.z  # yaw에 대한 각 속도 (z 축)
+        angular_velocity = msg.angular_velocity.z  # yaw에 대한 각 속도 (z 축)
 
-    ekf.predict(0.01, angular_velocity)  # 예측 단계
-    ekf.update(msg.orientation)  # 업데이트 단계
-    corrected_yaw = np.rad2deg(ekf.get_yaw())
+        ekf.predict(0.01, angular_velocity)  # 예측 단계
+        ekf.update(msg.orientation)  # 업데이트 단계
+        corrected_yaw = np.rad2deg(ekf.get_yaw())
+
+        # offset
+        # offset = -30
+        # corrected_yaw += offset
     
-    rospy.loginfo(f'Corrected Yaw: {corrected_yaw} degrees')  # 보정된 yaw 출력
-    yaw_pub.publish(Float64(corrected_yaw))
+        rospy.loginfo(f'Corrected Yaw: {corrected_yaw} degrees')  # 보정된 yaw 출력
+        yaw_pub.publish(Float64(corrected_yaw))
 
 yaw_pub = rospy.Publisher('/corrected_yaw', Float64, queue_size=10)
 

@@ -44,12 +44,15 @@ class VCUCAN():
             message = can.Message(arbitration_id=self.db_MorA_msg.frame_id, data=MorA_data)
             self.bus.send(message)
             # Steering angle 메시지 전송
+            if self.steering > 39.0 : 
+                self.steering = 39.0
+            elif self.steering < -39.0 :
+                self.steering = -39.0
             rospy.loginfo("Curr steer : %d", self.steering)
             steering_dict = {'TargetSteeringAngle': -self.steering * 10000}
             steer_data = self.db_steer_msg.encode(steering_dict)
             message = can.Message(arbitration_id=self.db_steer_msg.frame_id, data=steer_data)
             self.bus.send(message)
-            self.velocity = 350
             # ========================= vcu can ======================================
             Cmd_dict = {
                 'cmd_estop_toggle': self.brake,  # 1 -> estop, 0 -> normal
@@ -58,7 +61,19 @@ class VCUCAN():
                 'cmd_enable_': 1,  # 1 -> auto, 0 -> manual
                 'cmd_motor_torq_direction': 1,
                 'motor_alive_count': self.motor_alive_count
-            }
+            }< -39.0 :
+
+            # Manual Converter For Start Line
+            if self.brake == -1 :
+                Cmd_dict = {
+                    'cmd_estop_toggle' : 0,          # 1 -> estop, 0 -> normal
+                    'cmd_motor_speed_limit' : 3,     # 3 -> 1x, 2 -> 1/2x, 1 -> 1/10x, 0 -> 1/50x
+                    'cmd_motor_torq_value' : 0,      # 0 ~ 3200
+                    'cmd_enable_' : 0,               # 1 -> auto, 0 -> manual
+                    'cmd_motor_torq_direction' : 1,
+                    'motor_alive_count' : self.motor_alive_count
+                }
+
             Cmd_data = self.db_Cmd_msg.encode(Cmd_dict)
             message = can.Message(arbitration_id=self.db_Cmd_msg.frame_id, data=Cmd_data)
             self.bus.send(message)
@@ -66,6 +81,7 @@ class VCUCAN():
 
             self.mutex_lock = False
             rospy.loginfo("Curr vel : %d",self.velocity)
+            rospy.loginfo("Braking : %d", self.brake)
             rospy.loginfo("Send message.")
 
 

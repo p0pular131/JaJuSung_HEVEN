@@ -24,6 +24,10 @@ public:
         init_dict();
     }
     
+    // std::pair<double, double> gps_to_local(double lat, double lon, double ref_lat, double ref_lon);
+
+    // std::pair<double, double> rotate_to_local(double x, double y, double angle);
+
     double gps_stanley();
     
     void init_dict();
@@ -55,7 +59,7 @@ private:
     ros::Subscriber sub_1;
     ros::Subscriber sub_2;
     
-    double LANE_K = 0.05;
+    double LANE_K = 0.001;
     double VEL = 5;
 
     double METER_X_CONST = 110000;
@@ -63,7 +67,7 @@ private:
     int GPS_TRACKING_SPEED = 7;
     int TRACK_IDX = 0;
 
-    double DISTANCE_SQUARE = 0.6;
+    double DISTANCE_SQUARE = 10;
     std::vector<std::pair<double, double>> TRACK_DICT;
     // std::vector<double> ref_yaw;
     double ref_yaw;

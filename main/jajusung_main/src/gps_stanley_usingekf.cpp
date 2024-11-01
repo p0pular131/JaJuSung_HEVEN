@@ -16,7 +16,8 @@ void GPS_STANLEY::init_dict()
     std::vector<std::string> csv_file_path = {
         // "/home/heven/erp_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
         // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_pcy.csv"
-        "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_1026.csv"
+        // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_1026.csv"
+        "/home/heven/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_1031.csv"
     };
 
     for (int i = 0; i < csv_file_path.size(); ++i) {
@@ -74,7 +75,7 @@ double GPS_STANLEY::gps_stanley()
     std::pair<double,double> p_curr = {latitude * METER_X_CONST, longitude * METER_Y_CONST};
 
     double distance = pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX].first), 2) + pow((p_curr.second - METER_Y_CONST * TRACK_DICT[TRACK_IDX].second), 2);
-    car_angle = imu_yaw;
+    car_angle = imu_yaw_modified;
     if (distance < DISTANCE_SQUARE) {
         TRACK_IDX += 1;
     }
@@ -96,6 +97,8 @@ double GPS_STANLEY::gps_stanley()
     lateral_error = atan2(targetdir_y, targetdir_x);
 
     lateral_error = -sin(lateral_error)*distance;
+
+    ROS_INFO("%f", lateral_error);
 
     double stanley_delta = rad2deg(deg2rad(final_steer_angle) + atan(LANE_K*lateral_error/((VEL/3.6))));
 
@@ -179,11 +182,61 @@ void GPS_STANLEY::chatterCallback_1(const sensor_msgs::NavSatFix::ConstPtr& msg_
   gps_stanley();
 }
 
-void GPS_STANLEY::chatterCallback_2(const std_msgs::Float64::ConstPtr& msg_2)
+// void GPS_STANLEY::chatterCallback_2(const std_msgs::Float64::ConstPtr& msg_2)
+// {
+
+//     imu_yaw = msg_2->data;
+
+//     // ROS_INFO("Corrected Yaw: %f degrees", imu_yaw);
+
+// }
+
+
+void GPS_STANLEY::chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2)
 {
 
-    imu_yaw = msg_2->data;
+    // 메시지 복사본을 생성하여 타임스탬프를 설정합니다.
+    sensor_msgs::Imu imu_msg = *msg_2;  // 메시지 복사
+    imu_msg.header.stamp = ros::Time::now();  // 현재 시간으로 타임스탬프 설정
 
-    // ROS_INFO("Corrected Yaw: %f degrees", imu_yaw);
+    tf::Quaternion q(
+        msg_2->orientation.x,
+        msg_2->orientation.y,
+        msg_2->orientation.z,
+        msg_2->orientation.w);
+    tf::Matrix3x3 m(q);
+    double roll, pitch;
+    m.getRPY(roll, pitch, imu_yaw);
 
+    // imu_yaw = fmod((- rad2deg(imu_yaw) + 90.0), 360.0);
+
+    imu_yaw = rad2deg(imu_yaw);
+
+    yaw_rate = msg_2->angular_velocity.z;
+
+    // // Use `yaw_rate` and `delta_time` to update `global_yaw`
+    // double delta_time = (msg_2->header.stamp - last_timestamp_).toSec(); // Calculate time delta
+    // yaw_from_rate += yaw_rate * delta_time; // Integrate yaw rate
+    // yaw_from_rate = fmod(yaw_from_rate + 360.0, 360.0); // Keep yaw in 0-360 range
+
+
+    // if (!last_timestamp_.isZero()) {
+    //     double delta_time = (imu_msg.header.stamp - last_timestamp_).toSec(); // 시간 차이 계산
+    //     yaw_rate = rad2deg(imu_msg.angular_velocity.z);  // rad/s에서 deg/s로 변환
+    //     yaw_from_rate += yaw_rate * delta_time;  // yaw rate 적분
+    //     yaw_from_rate = fmod(yaw_from_rate + 360.0, 360.0); // 초기 yaw offset 추가 및 0-360 범위 유지
+    // }
+
+    // last_timestamp_ = imu_msg.header.stamp;  // 마지막 시간 업데이트
+
+    // // last_timestamp_ = msg_2->header.stamp; // Update last timestamp
+
+    if (imu_yaw <= 0) {
+        imu_yaw_modified = 360 + imu_yaw;
+    }
+    else { imu_yaw_modified = imu_yaw; }
+
+    // ROS_INFO("%f", imu_yaw_modified);
+
+    // imu_yaw_rate = msg_2->angular_velocity.z;
 }

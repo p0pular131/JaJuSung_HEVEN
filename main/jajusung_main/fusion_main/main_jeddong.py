@@ -21,14 +21,35 @@ def do_passthrough(pcl_data, filter_axis, axis_min, axis_max):
 class Jeddong():
     def __init__(self):
         rospy.init_node("Fusion_node", anonymous=False)
-        # LiDAR 데이터 구독
+
+        self.vel_pub = rospy.Publisher("/drive",HevenCtrlCmd)
+        self.stanley_cmd = HevenCtrlCmd()
+        self.init_time = rospy.Time.now()
+        while True :
+            current_time = rospy.Time.now() 
+            if (current_time - self.init_time).to_sec() > 5 :
+                for i in range(100) :
+                    rospy.loginfo("Start ! ! ")
+                    self.stanley_cmd.brake = -1
+                    self.stanley_cmd.steering = 0
+                    self.stanley_cmd.velocity = 0
+                    self.vel_pub.publish(self.stanley_cmd)       
+                break
+            else :
+                rospy.loginfo("Start Line ESTOP")
+                self.stanley_cmd.brake = 1
+                self.stanley_cmd.steering = 0
+                self.stanley_cmd.velocity = 0
+                self.vel_pub.publish(self.stanley_cmd)       
+
         self.lidar_sub = rospy.Subscriber("/livox/lidar", PointCloud2, self.lidar_callback)  #pc메시지 구독, 수신되면 lidar_callback함수 실행
         self.stanley_sub = rospy.Subscriber("/drive_stanley", HevenCtrlCmd, self.stanley_cb)
-        self.vel_pub = rospy.Publisher("/drive",HevenCtrlCmd)
         self.braking = False
-        self.stanley_cmd = HevenCtrlCmd()
-        self.braking_dixtance = 5.0
-        self.point_count_threshold = 4
+        # self.braking_dixtance = 0.             
+        # self.braking_dixtance = 10.0 # jeddong  10.0
+        self.braking_dixtance = 20.0 # gasock  20.0
+ 
+        self.point_count_threshold = 3
 
     def stanley_cb(self, data) :
         self.stanley_cmd = data
@@ -36,14 +57,14 @@ class Jeddong():
     def lidar_callback(self, data):
         # PointCloud2 메시지를 PCL 포맷으로 변환
         pcl_cloud = pcl_helper.ros_to_pcl(data)
-        # ROI 설정 및 필터링
+        # ROI 설정 및 필터링    
         filter_axis = 'y'
         axis_min = -0.5
         axis_max = 0.5
         cloud = do_passthrough(pcl_cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'x'
         axis_min = 2.0
-        axis_max = 15.0
+        axis_max = 25.0
         cloud = do_passthrough(cloud, filter_axis, axis_min, axis_max)
         filter_axis = 'z'
         axis_min = -1.1

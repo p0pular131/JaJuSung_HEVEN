@@ -1,22 +1,22 @@
-#include "gps_stanley_h.h"
+#include "gps_stanley_h_org.h"
 #include <iostream>
 #include <utility>
-#include <jajusung_main/HevenCtrlCmd.h>
 #include <tf/transform_datatypes.h>
+#include <sensor_msgs/Imu.h>
 #include <cmath>
-
-
+#include <geometry_msgs/Vector3.h>
+#include <jajusung_main/HevenCtrlCmd.h>
 
 void GPS_STANLEY::init_dict()
 /* INITIALIZE DICTIONARY!!! */
 {
-
+    // std::string assets_path = "/home/heven/erp_ws/src/heven_m_m/lane_ctrl/src/";
 
     std::vector<std::string> csv_file_path = {
         // "/home/heven/erp_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
         // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_pcy.csv"
-        // "/home/heven/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test.csv"
-        "/home/heven/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/bagfile/gps_test_1101.csv"
+        // "/home/pcy028x2/catkin_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_1026.csv"
+        "/home/heven/jajusung_ws/src/JaJuSung_HEVEN/main/jajusung_main/src/gps_test_1030.csv"
     };
 
     for (int i = 0; i < csv_file_path.size(); ++i) {
@@ -41,9 +41,8 @@ void GPS_STANLEY::init_dict()
                 double first = std::stod(row[0]);
                 double second = std::stod(row[1]);
                 // double third = std::stod(row[2]);
-                // // double third = atan2(second, first);
                 // ref_yaw.push_back(third);
-                // // ref_yaw ëŠ” imu ì„¼ì„œë¥¼ ì´ìš©í•´ì„œ êµ¬í•˜ê³  ìžˆìŒ
+                // ref_yaw 는 imu 센서를 이용해서 구하고 있음
                 TRACK_DICT.emplace_back(first, second);
             }
         }
@@ -52,112 +51,72 @@ void GPS_STANLEY::init_dict()
     }
 }
 
-double GPS_STANLEY::calculate_targ_angle()
+void GPS_STANLEY::ref_yaw_dict()
 {
-    double dict_x, dict_y;
-    if (TRACK_IDX == 0) {
-        // dict_x = TRACK_DICT[1].second - TRACK_DICT[0].second;
-        // dict_y = TRACK_DICT[1].first - TRACK_DICT[0].first;
-        dict_x = TRACK_DICT[TRACK_IDX + 1].second - TRACK_DICT[TRACK_IDX].second;
-        dict_y = TRACK_DICT[TRACK_IDX + 1].first - TRACK_DICT[TRACK_IDX].first;
-    }
-    else {
-        dict_x = TRACK_DICT[TRACK_IDX + 1].second - TRACK_DICT[TRACK_IDX].second;
-        dict_y = TRACK_DICT[TRACK_IDX + 1].first - TRACK_DICT[TRACK_IDX].first;
-    }
-    
-    double dict_angle = atan2(dict_y, dict_x) * 180.0 / M_PI;
-    if (dict_angle < 0 ) {
-        dict_angle = dict_angle + 360;
-    }
+    for (size_t i = 0; i < TRACK_DICT.size() - 1; ++i) {
+        double first1 = TRACK_DICT[i].first;
+        double second1 = TRACK_DICT[i].second;
+        double first2 = TRACK_DICT[i+1].first;
+        double second2 = TRACK_DICT[i+1].second;
 
-    return dict_angle;
+        double delta_lat = (first2 - first1) * METER_X_CONST;
+        double delta_lon = (second2 - second1) * METER_Y_CONST;
 
+        double global_yaw = fmod((atan2(delta_lon, delta_lat) * (180.0 / M_PI)) + 360.0, 360.0);
+        ref_yaw.push_back(global_yaw);
+    }
 }
 
 double GPS_STANLEY::gps_stanley()
 // SHOULD RETURN DELTA USING STANLEY
 {
-    // changes p_curr gps latitude, longitude to meterscale
+    // changes p_curr gps latitude, altitude to meterscale
     std::pair<double,double> p_curr = {latitude * METER_X_CONST, longitude * METER_Y_CONST};
 
-    double distance = pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX + 1].first), 2) + pow((p_curr.second - METER_Y_CONST * TRACK_DICT[TRACK_IDX + 1].second), 2);
-    ROS_INFO("%f", distance);
-    car_angle = GPS_STANLEY::calculate_gps(prev_position, p_curr);
+    double distance = pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX].first), 2) + pow((p_curr.second - METER_Y_CONST * TRACK_DICT[TRACK_IDX].second), 2);
+    car_angle = imu_yaw;
     if (distance < DISTANCE_SQUARE) {
         TRACK_IDX += 1;
     }
 
     std::pair<double,double> p_targ = TRACK_DICT[TRACK_IDX];
 
-    curr_angle_error = GPS_STANLEY::find_angle_error(car_angle, GPS_STANLEY::calculate_targ_angle());
+    // curr_angle_error = GPS_STANLEY::find_angle_error(car_angle, p_curr, p_targ);
+    curr_angle_error = GPS_STANLEY::find_angle_error(car_angle, ref_yaw[TRACK_IDX]);
 
     // HEADING ERROR
-    final_steer_angle = 0.6 * GPS_STANLEY::_constraint(curr_angle_error);
+    final_steer_angle = GPS_STANLEY::_constraint(curr_angle_error);
     
     // LATERAL ERROR
-
     double targetdir_x = METER_Y_CONST * p_targ.second - p_curr.second;
     double targetdir_y = METER_X_CONST * p_targ.first - p_curr.first;
     
-
-    double curr_distance = sqrt(pow((p_curr.first - METER_X_CONST * TRACK_DICT[TRACK_IDX + 1].first), 2) + pow((p_curr.second - METER_Y_CONST * TRACK_DICT[TRACK_IDX + 1].second), 2));
-
+    distance = sqrt(distance);
 
     lateral_error = atan2(targetdir_y, targetdir_x);
 
-    lateral_error = sin(lateral_error)*curr_distance;
-
-    // if (lateral_error > 20 || lateral_error < -20) {
-    //     TRACK_IDX += 1;
-    // }
+    lateral_error = -sin(lateral_error)*distance;
 
     double stanley_delta = rad2deg(deg2rad(final_steer_angle) + atan(LANE_K*lateral_error/((VEL/3.6))));
 
-    if (stanley_delta >= 35.0) {
-        stanley_delta = 35.0;
-    }
-    else if (stanley_delta <= -35.0) {
-        stanley_delta = -35.0;
-    }
     jajusung_main::HevenCtrlCmd drive_cmd;
     drive_cmd.velocity = 300;
     drive_cmd.steering = (int)stanley_delta;
     // if(drive_cmd.Deg > 25) drive_cmd.Deg = 25;
     // else if(drive_cmd.Deg < -25) drive_cmd.Deg = -25;
 
+    // erp42_msgs::ModeCmd mode_cmd;
+    // mode_cmd.MorA = 0x01;
+    // mode_cmd.EStop = 0x00;
+    // mode_cmd.Gear = 0x00;
     std::cout<<"================lateral_error : "<<rad2deg(atan(LANE_K*lateral_error/((VEL/3.6))))<<'\n';
     std::cout<<"================heading_error : "<<final_steer_angle<<'\n';
-    // std::cout<<"================heading_error not saturated : "<<curr_angle_error<<'\n';
     std::cout<<"================result_drive : "<<stanley_delta<<'\n';
     std::cout<<"================target_idx : "<<TRACK_IDX<<'\n';
-    // std::cout << imu_yaw_rate << std::endl;
     drive_pub.publish(drive_cmd);
-    prev_position = p_curr;
-    prev_car_angle = car_angle;
 
     return stanley_delta;
 }
-
-double GPS_STANLEY::calculate_gps(const std::pair<double, double>& prev, const std::pair<double, double>& curr) {
-    double distance_threshold = 0.01; // Adjust as necessary for sensitivity
-    double delta_x = curr.second - prev.second;
-    double delta_y = curr.first - prev.first;
-    
-    // if (std::hypot(delta_x, delta_y) < distance_threshold) {
-    //     ROS_INFO("Using prev angle: %f", prev_car_angle);
-    //     return prev_car_angle; // Use previous angle if the car hasn't moved significantly
-    // }
-
-    double angle = atan2(delta_y, delta_x) * 180.0 / M_PI;
-    if (angle < 0) {
-        angle = angle + 360;
-    }
-    prev_car_angle = angle;
-    return angle;
-}
-
-
 
 double GPS_STANLEY::find_angle_error(double car_angle, double ref_angle)
 {
@@ -165,8 +124,8 @@ double GPS_STANLEY::find_angle_error(double car_angle, double ref_angle)
     // targetedir_y might be always positive 
     // double targetdir_x = METER_Y_CONST * position_targ.second - position_curr.second;
     // double targetdir_y = METER_X_CONST * position_targ.first - position_curr.first;
-    // double target_angle = rad2deg(ref_angle);
-    double angle_error = ref_angle - car_angle;
+
+    double target_angle = ref_angle;
     // target_angle = - target_angle + 90.0;
 
     // double target_angle_modified = 0;
@@ -176,10 +135,10 @@ double GPS_STANLEY::find_angle_error(double car_angle, double ref_angle)
     // }
     // else { target_angle_modified = target_angle; }
 
-    ROS_INFO("Target angle : %.1f", ref_angle);
+    ROS_INFO("Target angle : %.1f", target_angle);
     ROS_INFO("Car angle : %.2f", car_angle);
 
-    // double angle_error = car_angle - target_angle_modified;
+    double angle_error = car_angle - target_angle;
 
     if (angle_error >= 180) {
         angle_error -= 360;
@@ -213,26 +172,37 @@ void GPS_STANLEY::chatterCallback_1(const sensor_msgs::NavSatFix::ConstPtr& msg_
   gps_stanley();
 }
 
-// void GPS_STANLEY::chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2)
-// {
-//     tf::Quaternion q(
-//         msg_2->orientation.x,
-//         msg_2->orientation.y,
-//         msg_2->orientation.z,
-//         msg_2->orientation.w);
-//     tf::Matrix3x3 m(q);
-//     double roll, pitch;
-//     m.getRPY(roll, pitch, imu_yaw);
+void GPS_STANLEY::chatterCallback_2(const sensor_msgs::Imu::ConstPtr& msg_2)
+{
+    tf::Quaternion q(
+        msg_2->orientation.x,
+        msg_2->orientation.y,
+        msg_2->orientation.z,
+        msg_2->orientation.w);
+    tf::Matrix3x3 m(q);
+    double roll, pitch;
+    m.getRPY(roll, pitch, imu_yaw);
 
-//     // imu_yaw = fmod((- rad2deg(imu_yaw) + 90.0), 360.0);
+    yaw_rate = msg_2->angular_velocity.z;
+    // imu_yaw = fmod((- rad2deg(imu_yaw) + 90.0), 360.0);
 
-//     imu_yaw = - rad2deg(imu_yaw) + 90.0;
+    imu_yaw = - rad2deg(imu_yaw);
 
-//     if (imu_yaw <= 0) {
-//         imu_yaw_modified = 180.0 + (180.0 + imu_yaw);
-//     }
-//     else { imu_yaw_modified = imu_yaw; }
+    // if (imu_yaw <= 0) {
+    //     imu_yaw = 180.0 + (180.0 + imu_yaw);
+    // }
 
-//     // imu_yaw_rate = msg_2->angular_velocity.z;
-// }
+    EKF_YawCorrector ekf;
 
+    ekf.predict(yaw_rate);
+    ekf.update(imu_yaw);
+
+    imu_yaw = fmod(ekf.getCorrectedYaw(), 360.0);
+    if (imu_yaw < 0) {
+        imu_yaw += 360.0;
+    }
+
+
+    // ROS_INFO("Corrected Yaw: %f degrees", imu_yaw);
+    
+}

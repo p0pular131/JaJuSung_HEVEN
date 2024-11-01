@@ -114,10 +114,10 @@ public:
 
         double diff_time = fabs(current_image_time - current_scan_time - time_offset);
 
-        // if( diff_time > 0.2) {
-        //     ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
-        //     return;
-        // }
+        if( diff_time > 0.2) {
+            ROS_INFO("Too diff time : %.6f. skip this scan.",diff_time);
+            return;
+        }
         pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::fromROSMsg(*msg, *pcl_cloud);
 
@@ -132,7 +132,7 @@ public:
         pcl::PassThrough<pcl::PointXYZ> pass;
         pass.setInputCloud(filtered_cloud);
         pass.setFilterFieldName("x");
-        pass.setFilterLimits(2.5, 13.0);
+        pass.setFilterLimits(2.5, 10.0);
         pass.filter(*filtered_cloud);
         pass.setFilterFieldName("y");
         pass.setFilterLimits(-6.0, 6.0);

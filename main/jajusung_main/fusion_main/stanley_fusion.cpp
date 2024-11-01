@@ -16,7 +16,7 @@ public:
         control_pub_ = nh.advertise<jajusung_main::HevenCtrlCmd>("/drive_stanley", 10);
 
         // 가중치 초기화 (최근 값에 더 높은 가중치를 주도록 설정)
-        weights_ = {1, 2, 3, 4, 5};
+        weights_ = {1, 2, 2, 2, 5};
         normalizeWeights();
     }
 
@@ -28,8 +28,8 @@ public:
             ROS_WARN("Received empty PointCloud2 data on /midpoint_path");
             jajusung_main::HevenCtrlCmd cmd_vel;
             cmd_vel.velocity = trc;
-            cmd_vel.steering = delta_prev * 1.1;
-            updateMovingAverage(delta_prev * 1.1);
+            cmd_vel.steering = delta_prev * 1.2;
+            // updateMovingAverage(delta_prev * 1.1);
             control_pub_.publish(cmd_vel);
             return;
         }
@@ -53,10 +53,9 @@ public:
         updateMovingAverage(delta);
 
         // 필터링된 delta 값을 사용하여 제어 명령 결정
-        delta = getFilteredSteering();
+        // delta = getFilteredSteering();
         if (delta > 35.0) delta = 35.0;
         else if (delta < -35.0) delta = -35.0;
-
         // ROS_INFO("Filtered delta: %.3f", delta);
 
         delta_prev = delta;
@@ -64,6 +63,7 @@ public:
         // 조향각을 포함한 제어 명령 퍼블리시
         jajusung_main::HevenCtrlCmd cmd_vel;
         cmd_vel.velocity = trc;
+        if (delta > 20.0 || delta < -20.0) cmd_vel.velocity = cmd_vel.velocity * 0.4;
         cmd_vel.steering = delta;
         control_pub_.publish(cmd_vel);
     }
@@ -119,7 +119,9 @@ private:
     ros::Publisher control_pub_;
 
     double k_ = 0.1;  // Stanley 제어기 이득
-    int trc = 400;  // 토크
+    // int trc = 450;  // jonghap
+    int trc = 200;  // jonghap
+
     double delta_prev = 0.0;
 
     // 가중 이동 평균 필터 변수

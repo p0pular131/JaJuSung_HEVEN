@@ -4,7 +4,7 @@
     <node name="mainNode" pkg="jajusung_main" type="main_johyang.py" output="screen"/>
 
     <!-- Fusion node 실행 -->
-    <node pkg="jajusung_main" type="fusion_johyang" name="fusion_johyang" output="screen" />
+    <node pkg="jajusung_main" type="fusion_johyang" name="fusion_johyang" />
 
     <!-- Fusion stanley 실행 -->
     <node pkg="jajusung_main" type="fusion_stanley" name="fusion_stanley" output="screen" />

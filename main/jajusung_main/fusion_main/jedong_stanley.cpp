@@ -16,7 +16,7 @@ public:
         control_pub_ = nh.advertise<jajusung_main::HevenCtrlCmd>("/drive_stanley", 10);
 
         // 가중치 초기화 (최근 값에 더 높은 가중치를 주도록 설정)
-        weights_ = {1, 2, 3, 4, 5};
+        weights_ = {1, 1, 1, 1, 2, 2, 2, 8};
         normalizeWeights();
     }
 
@@ -24,15 +24,16 @@ public:
         pcl::PointCloud<pcl::PointXYZ> cloud;
         pcl::fromROSMsg(*msg, cloud);
 
-        if (cloud.empty()) {
-            ROS_WARN("Received empty PointCloud2 data on /midpoint_path");
-            jajusung_main::HevenCtrlCmd cmd_vel;
-            cmd_vel.velocity = trc;
-            cmd_vel.steering = delta_prev * 1.1;
-            updateMovingAverage(delta_prev * 1.1);
-            control_pub_.publish(cmd_vel);
-            return;
-        }
+        // if (cloud.empty()) {
+        //     ROS_WARN("Received empty PointCloud2 data on /midpoint_path");
+        //     jajusung_main::HevenCtrlCmd cmd_vel;
+        //     cmd_vel.velocity = trc;
+        //     cmd_vel.steering = delta_prev;
+        //     updateMovingAverage(delta_prev);
+        //     getFilteredSteering();
+        //     control_pub_.publish(cmd_vel);
+        //     return;
+        // }
 
         // 가장 가까운 점을 찾아 목표점으로 설정
         pcl::PointXYZ closest_point;
@@ -119,7 +120,8 @@ private:
     ros::Publisher control_pub_;
 
     double k_ = 0.05;  // Stanley 제어기 이득
-    int trc = 400;  // 토크
+    // int trc = 350;  // jeddong torc
+    int trc = 800;  // gasock torc
     double delta_prev = 0.0;
 
     // 가중 이동 평균 필터 변수
